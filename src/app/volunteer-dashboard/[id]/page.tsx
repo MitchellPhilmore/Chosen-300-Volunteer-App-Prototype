@@ -46,7 +46,7 @@ interface VolunteerSession {
   identifier: string;
   program: string;
   checkInTime: string;
-  checkOutTime?: string;
+  checkOutTime?: string | undefined;
   hoursWorked?: string;
   volunteerInfo: {
     id: string;
@@ -539,7 +539,7 @@ export default function VolunteerDashboard() {
                           {formatTime(session.checkInTime)}
                         </td>
                         <td className="py-3 px-4">
-                          {formatTime(session.checkOutTime)}
+                          {session.checkOutTime ? formatTime(session.checkOutTime) : "N/A"}
                         </td>
                         <td className="py-3 px-4">{session.hoursWorked}</td>
                       </tr>
