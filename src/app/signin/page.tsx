@@ -37,6 +37,8 @@ export default function SignIn() {
 
   const handleIdentifierSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log(volunteerInfo); // Temporary usage to avoid lint errors
+
     if (!identifier) return;
 
     setIsLoading(true);
