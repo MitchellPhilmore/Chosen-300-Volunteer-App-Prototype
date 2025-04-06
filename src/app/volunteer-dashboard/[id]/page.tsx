@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Clock, Calendar, Award, History, LogOut, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,24 +27,59 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+interface Volunteer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
+  registrationDate: string;
+}
+
+interface VolunteerSession {
+  identifier: string;
+  program: string;
+  checkInTime: string;
+  checkOutTime?: string;
+  hoursWorked?: string;
+  volunteerInfo: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  adminCode: string;
+}
+
 export default function VolunteerDashboard() {
-  // Use the useParams hook to get the id parameter from the URL
   const params = useParams();
   const id = params.id as string;
 
   const router = useRouter();
-  const [volunteer, setVolunteer] = useState<any>(null);
+  const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminCode, setAdminCode] = useState("");
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState("");
-  const [volunteerHistory, setVolunteerHistory] = useState<any[]>([]);
-  const [activeSession, setActiveSession] = useState<any>(null);
+  const [volunteerHistory, setVolunteerHistory] = useState<VolunteerSession[]>(
+    []
+  );
+  const [activeSession, setActiveSession] = useState<VolunteerSession | null>(
+    null
+  );
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined") return;
+
     // Fetch volunteer data
     const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
-    const foundVolunteer = volunteers.find((v: any) => v.id === id);
+    const foundVolunteer = volunteers.find((v: Volunteer) => v.id === id);
 
     if (foundVolunteer) {
       setVolunteer(foundVolunteer);
@@ -55,7 +89,7 @@ export default function VolunteerDashboard() {
         localStorage.getItem("activeVolunteers") || "[]"
       );
       const currentSession = activeVolunteers.find(
-        (s: any) => s.volunteerInfo && s.volunteerInfo.id === id
+        (s: VolunteerSession) => s.volunteerInfo && s.volunteerInfo.id === id
       );
 
       if (currentSession) {
@@ -67,7 +101,7 @@ export default function VolunteerDashboard() {
         localStorage.getItem("completedSessions") || "[]"
       );
       const history = completedSessions.filter(
-        (s: any) => s.volunteerInfo && s.volunteerInfo.id === id
+        (s: VolunteerSession) => s.volunteerInfo && s.volunteerInfo.id === id
       );
 
       setVolunteerHistory(history);
@@ -81,6 +115,7 @@ export default function VolunteerDashboard() {
   }, [id, router]);
 
   const handleCheckIn = () => {
+    if (!volunteer) return;
     if (!adminCode) {
       toast.error("Please enter the admin code");
       return;
@@ -97,7 +132,7 @@ export default function VolunteerDashboard() {
     // For demo purposes, we'll accept any code
     setTimeout(() => {
       // Create check-in record
-      const checkInData = {
+      const checkInData: VolunteerSession = {
         identifier: volunteer.email || volunteer.phone,
         program: selectedProgram,
         checkInTime: new Date().toISOString(),
@@ -134,7 +169,7 @@ export default function VolunteerDashboard() {
   };
 
   const handleCheckOut = () => {
-    if (!activeSession) return;
+    if (!activeSession || !volunteer) return;
 
     // Calculate hours
     const checkInTime = new Date(activeSession.checkInTime);
@@ -145,7 +180,7 @@ export default function VolunteerDashboard() {
     ).toFixed(2);
 
     // Create completed session record
-    const completedSession = {
+    const completedSession: VolunteerSession = {
       ...activeSession,
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked,
@@ -166,7 +201,8 @@ export default function VolunteerDashboard() {
       localStorage.getItem("activeVolunteers") || "[]"
     );
     const updatedActive = activeVolunteers.filter(
-      (s: any) => !(s.volunteerInfo && s.volunteerInfo.id === volunteer.id)
+      (s: VolunteerSession) =>
+        !(s.volunteerInfo && s.volunteerInfo.id === volunteer.id)
     );
     localStorage.setItem("activeVolunteers", JSON.stringify(updatedActive));
 
@@ -192,7 +228,7 @@ export default function VolunteerDashboard() {
   const calculateTotalHours = () => {
     return volunteerHistory
       .reduce((total, session) => {
-        return total + Number.parseFloat(session.hoursWorked);
+        return total + Number.parseFloat(session.hoursWorked || "0");
       }, 0)
       .toFixed(1);
   };
@@ -203,6 +239,10 @@ export default function VolunteerDashboard() {
         <Loader2 className="h-8 w-8 animate-spin text-red-700" />
       </div>
     );
+  }
+
+  if (!volunteer) {
+    return null;
   }
 
   return (

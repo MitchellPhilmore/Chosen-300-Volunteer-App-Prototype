@@ -1,93 +1,153 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Calendar, Clock, Download, Users, Search } from "lucide-react"
-import { toast } from "sonner"
+import { useEffect, useState } from "react";
+import { Calendar, Clock, Download, Users, Search } from "lucide-react";
+import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+
+interface Volunteer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone: string;
+  interests?: string[];
+  registrationDate: string;
+}
+
+interface VolunteerSession {
+  identifier: string;
+  program: string;
+  checkInTime: string;
+  checkOutTime?: string;
+  hoursWorked?: string;
+  rating?: number;
+  volunteerInfo?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+interface Stats {
+  totalHours: number;
+  totalVolunteers: number;
+  averageRating: number;
+  registeredCount: number;
+}
 
 export default function AdminDashboard() {
-  const [activeVolunteers, setActiveVolunteers] = useState<any[]>([])
-  const [completedSessions, setCompletedSessions] = useState<any[]>([])
-  const [registeredVolunteers, setRegisteredVolunteers] = useState<any[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [stats, setStats] = useState({
+  const [activeVolunteers, setActiveVolunteers] = useState<VolunteerSession[]>(
+    []
+  );
+  const [completedSessions, setCompletedSessions] = useState<
+    VolunteerSession[]
+  >([]);
+  const [registeredVolunteers, setRegisteredVolunteers] = useState<Volunteer[]>(
+    []
+  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [stats, setStats] = useState<Stats>({
     totalHours: 0,
     totalVolunteers: 0,
     averageRating: 0,
     registeredCount: 0,
-  })
+  });
 
   useEffect(() => {
     // In a real app, this would be an API call
-    const active = JSON.parse(localStorage.getItem("activeVolunteers") || "[]")
-    const completed = JSON.parse(localStorage.getItem("completedSessions") || "[]")
-    const registered = JSON.parse(localStorage.getItem("volunteers") || "[]")
+    const active = JSON.parse(localStorage.getItem("activeVolunteers") || "[]");
+    const completed = JSON.parse(
+      localStorage.getItem("completedSessions") || "[]"
+    );
+    const registered = JSON.parse(localStorage.getItem("volunteers") || "[]");
 
-    setActiveVolunteers(active)
-    setCompletedSessions(completed)
-    setRegisteredVolunteers(registered)
+    setActiveVolunteers(active);
+    setCompletedSessions(completed);
+    setRegisteredVolunteers(registered);
 
     // Calculate stats
     if (completed.length > 0) {
       const totalHours = completed.reduce(
-        (sum: number, session: any) => sum + Number.parseFloat(session.hoursWorked),
-        0,
-      )
+        (sum: number, session: VolunteerSession) =>
+          sum + Number.parseFloat(session.hoursWorked || "0"),
+        0
+      );
 
-      const ratingsCount = completed.filter((s: any) => s.rating > 0).length
-      const ratingsSum = completed.reduce((sum: number, session: any) => sum + (session.rating || 0), 0)
+      const ratingsCount = completed.filter(
+        (s: VolunteerSession) => s.rating && s.rating > 0
+      ).length;
+      const ratingsSum = completed.reduce(
+        (sum: number, session: VolunteerSession) => sum + (session.rating || 0),
+        0
+      );
 
       setStats({
         totalHours: Number.parseFloat(totalHours.toFixed(2)),
         totalVolunteers: completed.length,
-        averageRating: ratingsCount > 0 ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1)) : 0,
+        averageRating:
+          ratingsCount > 0
+            ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
+            : 0,
         registeredCount: registered.length,
-      })
+      });
     } else {
       setStats((prev) => ({
         ...prev,
         registeredCount: registered.length,
-      }))
+      }));
     }
-  }, [])
+  }, []);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
-  }
+    return new Date(dateString).toLocaleDateString();
+  };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
+    return new Date(dateString).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   const exportData = () => {
     // In a real app, this would generate a CSV file
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(completedSessions))
-    const downloadAnchorNode = document.createElement("a")
-    downloadAnchorNode.setAttribute("href", dataStr)
-    downloadAnchorNode.setAttribute("download", "volunteer-data.json")
-    document.body.appendChild(downloadAnchorNode)
-    downloadAnchorNode.click()
-    downloadAnchorNode.remove()
+    const dataStr =
+      "data:text/json;charset=utf-8," +
+      encodeURIComponent(JSON.stringify(completedSessions));
+    const downloadAnchorNode = document.createElement("a");
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "volunteer-data.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
 
     toast.success("Data exported successfully", {
       description: "Your volunteer data has been downloaded as a JSON file.",
-    })
-  }
+    });
+  };
 
   const filteredVolunteers = registeredVolunteers.filter((volunteer) => {
-    const searchLower = searchTerm.toLowerCase()
+    const searchLower = searchTerm.toLowerCase();
     return (
       volunteer.firstName.toLowerCase().includes(searchLower) ||
       volunteer.lastName.toLowerCase().includes(searchLower) ||
-      volunteer.email.toLowerCase().includes(searchLower) ||
+      volunteer.email?.toLowerCase().includes(searchLower) ||
       volunteer.phone.toLowerCase().includes(searchLower)
-    )
-  })
+    );
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -112,7 +172,9 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Volunteers</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Volunteers
+            </CardTitle>
             <Users className="h-4 w-4 text-red-700" />
           </CardHeader>
           <CardContent>
@@ -122,17 +184,23 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Average Rating
+            </CardTitle>
             <Calendar className="h-4 w-4 text-red-700" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.averageRating}/5</div>
-            <p className="text-xs text-muted-foreground">Volunteer satisfaction</p>
+            <p className="text-xs text-muted-foreground">
+              Volunteer satisfaction
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Registered Volunteers</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Registered Volunteers
+            </CardTitle>
             <Users className="h-4 w-4 text-red-700" />
           </CardHeader>
           <CardContent>
@@ -144,13 +212,22 @@ export default function AdminDashboard() {
 
       <Tabs defaultValue="active">
         <TabsList className="bg-gray-100">
-          <TabsTrigger value="active" className="data-[state=active]:bg-red-700 data-[state=active]:text-white">
+          <TabsTrigger
+            value="active"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
             Active Volunteers ({activeVolunteers.length})
           </TabsTrigger>
-          <TabsTrigger value="completed" className="data-[state=active]:bg-red-700 data-[state=active]:text-white">
+          <TabsTrigger
+            value="completed"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
             Completed Sessions ({completedSessions.length})
           </TabsTrigger>
-          <TabsTrigger value="registered" className="data-[state=active]:bg-red-700 data-[state=active]:text-white">
+          <TabsTrigger
+            value="registered"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
             Registered Volunteers ({registeredVolunteers.length})
           </TabsTrigger>
         </TabsList>
@@ -175,18 +252,27 @@ export default function AdminDashboard() {
                         : volunteer.identifier}
                     </TableCell>
                     <TableCell>
-                      {volunteer.program.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      {volunteer.program
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                     </TableCell>
                     <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
                     <TableCell>
-                      {Math.round((new Date().getTime() - new Date(volunteer.checkInTime).getTime()) / 60000)} min
+                      {Math.round(
+                        (new Date().getTime() -
+                          new Date(volunteer.checkInTime).getTime()) /
+                          60000
+                      )}{" "}
+                      min
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">No active volunteers at this time</div>
+            <div className="text-center py-4 text-muted-foreground">
+              No active volunteers at this time
+            </div>
           )}
         </TabsContent>
 
@@ -211,17 +297,23 @@ export default function AdminDashboard() {
                         : session.identifier}
                     </TableCell>
                     <TableCell>
-                      {session.program.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      {session.program
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                     </TableCell>
                     <TableCell>{formatDate(session.checkInTime)}</TableCell>
                     <TableCell>{session.hoursWorked}</TableCell>
-                    <TableCell>{session.rating ? `${session.rating}/5` : "N/A"}</TableCell>
+                    <TableCell>
+                      {session.rating ? `${session.rating}/5` : "N/A"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">No completed sessions yet</div>
+            <div className="text-center py-4 text-muted-foreground">
+              No completed sessions yet
+            </div>
           )}
         </TabsContent>
 
@@ -261,19 +353,22 @@ export default function AdminDashboard() {
                         ? volunteer.interests.join(", ")
                         : "None specified"}
                     </TableCell>
-                    <TableCell>{formatDate(volunteer.registrationDate)}</TableCell>
+                    <TableCell>
+                      {formatDate(volunteer.registrationDate)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
             <div className="text-center py-4 text-muted-foreground">
-              {searchTerm ? "No volunteers match your search" : "No registered volunteers yet"}
+              {searchTerm
+                ? "No volunteers match your search"
+                : "No registered volunteers yet"}
             </div>
           )}
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
-
