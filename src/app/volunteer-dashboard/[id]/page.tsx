@@ -137,12 +137,43 @@ export default function VolunteerDashboard() {
       return;
     }
 
+    // Validate admin code
+    const savedCode = localStorage.getItem("dailyCode");
+    if (!savedCode) {
+      toast.error("No active check-in code", {
+        description: "Please check with your coordinator.",
+      });
+      setAdminCode(""); // Clear the input
+      return;
+    }
+
+    const activeCode = JSON.parse(savedCode);
+
+    // Check if code has expired
+    if (new Date(activeCode.expiresAt) <= new Date()) {
+      toast.error("Check-in code has expired", {
+        description: "Please check with your coordinator for today's code.",
+      });
+      setAdminCode(""); // Clear the input
+      return;
+    }
+
+    // Ensure both codes are padded to 4 digits for comparison
+    const submittedCode = adminCode.padStart(4, "0");
+    const storedCode = activeCode.code.padStart(4, "0");
+
+    if (submittedCode !== storedCode) {
+      toast.error("Invalid check-in code", {
+        description: "Please check with your coordinator for the correct code.",
+      });
+      setAdminCode(""); // Clear the input
+      return;
+    }
+
     setIsCheckingIn(true);
 
-    // In a real app, you would validate the admin code against a database
-    // For demo purposes, we'll accept any code
+    // Create check-in record
     setTimeout(() => {
-      // Create check-in record
       const checkInData: VolunteerSession = {
         identifier: volunteer.email || volunteer.phone,
         program: selectedProgram,
@@ -152,7 +183,7 @@ export default function VolunteerDashboard() {
           firstName: volunteer.firstName,
           lastName: volunteer.lastName,
         },
-        adminCode,
+        adminCode: submittedCode, // Store the validated code
       };
 
       // Store in localStorage
@@ -450,8 +481,14 @@ export default function VolunteerDashboard() {
                             <Input
                               id="adminCode"
                               value={adminCode}
-                              onChange={(e) => setAdminCode(e.target.value)}
+                              onChange={(e) =>
+                                setAdminCode(
+                                  e.target.value.replace(/\D/g, "").slice(0, 4)
+                                )
+                              }
                               placeholder="Enter the code provided by staff"
+                              type="text"
+                              maxLength={4}
                             />
                           </div>
                         </div>

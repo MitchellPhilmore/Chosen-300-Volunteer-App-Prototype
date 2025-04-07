@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, Clock, Download, Users, Search } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Download,
+  Users,
+  Search,
+  Eye,
+  EyeOff,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -48,6 +57,20 @@ interface Stats {
   registeredCount: number;
 }
 
+interface DailyCode {
+  code: string;
+  expiresAt: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+interface CodeAuditLog {
+  code: string;
+  action: "created" | "updated" | "generated";
+  timestamp: string;
+  adminId: string;
+}
+
 export default function AdminDashboard() {
   const [activeVolunteers, setActiveVolunteers] = useState<VolunteerSession[]>(
     []
@@ -65,6 +88,10 @@ export default function AdminDashboard() {
     averageRating: 0,
     registeredCount: 0,
   });
+  const [dailyCode, setDailyCode] = useState<DailyCode | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [auditLog, setAuditLog] = useState<CodeAuditLog[]>([]);
 
   useEffect(() => {
     // In a real app, this would be an API call
@@ -108,6 +135,22 @@ export default function AdminDashboard() {
         ...prev,
         registeredCount: registered.length,
       }));
+    }
+
+    // Load daily code
+    const savedCode = localStorage.getItem("dailyCode");
+    if (savedCode) {
+      const parsedCode = JSON.parse(savedCode);
+      // Check if code has expired
+      if (new Date(parsedCode.expiresAt) > new Date()) {
+        setDailyCode(parsedCode);
+      }
+    }
+
+    // Load audit log
+    const savedAuditLog = localStorage.getItem("codeAuditLog");
+    if (savedAuditLog) {
+      setAuditLog(JSON.parse(savedAuditLog));
     }
   }, []);
 
@@ -201,6 +244,48 @@ export default function AdminDashboard() {
     );
   });
 
+  const generateCode = () => {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setNewCode(code);
+  };
+
+  const saveCode = (code: string) => {
+    const now = new Date();
+    // Set expiration to midnight of the next day
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    // Ensure code is a 4-digit string
+    const formattedCode = code.padStart(4, "0").slice(0, 4);
+
+    const codeData: DailyCode = {
+      code: formattedCode,
+      expiresAt: tomorrow.toISOString(),
+      createdAt: now.toISOString(),
+      createdBy: "admin", // In a real app, this would be the actual admin ID
+    };
+
+    // Save code
+    localStorage.setItem("dailyCode", JSON.stringify(codeData));
+    setDailyCode(codeData);
+
+    // Add to audit log
+    const logEntry: CodeAuditLog = {
+      code: formattedCode,
+      action: newCode ? "updated" : "generated",
+      timestamp: now.toISOString(),
+      adminId: "admin", // In a real app, this would be the actual admin ID
+    };
+
+    const updatedLog = [logEntry, ...auditLog].slice(0, 100); // Keep last 100 entries
+    localStorage.setItem("codeAuditLog", JSON.stringify(updatedLog));
+    setAuditLog(updatedLog);
+
+    setNewCode("");
+    toast.success("Daily code updated successfully");
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -261,6 +346,80 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg font-bold">
+              Daily Check-in Code
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {dailyCode
+                ? `Valid until ${new Date(
+                    dailyCode.expiresAt
+                  ).toLocaleString()}`
+                : "No active code"}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowCode(!showCode)}
+          >
+            {showCode ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <Input
+                  type="text"
+                  maxLength={4}
+                  placeholder="Enter 4-digit code"
+                  value={newCode}
+                  onChange={(e) =>
+                    setNewCode(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={generateCode}
+                title="Generate random code"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() =>
+                  saveCode(
+                    newCode ||
+                      Math.floor(1000 + Math.random() * 9000).toString()
+                  )
+                }
+                className="bg-red-700 hover:bg-red-800"
+                disabled={newCode.length > 0 && newCode.length < 4}
+              >
+                {dailyCode ? "Update Code" : "Set Code"}
+              </Button>
+            </div>
+
+            {dailyCode && (
+              <div className="p-4 bg-gray-50 rounded-md">
+                <p className="text-sm font-medium">Current Code:</p>
+                <p className="text-2xl font-bold font-mono">
+                  {showCode ? dailyCode.code : "••••"}
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="active">
         <TabsList className="bg-gray-100">

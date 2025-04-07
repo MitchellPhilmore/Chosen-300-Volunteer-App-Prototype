@@ -51,7 +51,7 @@ export default function CheckIn() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [identifier, setIdentifier] = useState("");
-  const [pin, setPin] = useState("");
+  const [dailyCode, setDailyCode] = useState("");
   const [program, setProgram] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [volunteerInfo, setVolunteerInfo] = useState<Volunteer | null>(null);
@@ -77,17 +77,45 @@ export default function CheckIn() {
     setStep(2);
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handleDailyCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pin) return;
+    if (!dailyCode) return;
 
-    // If volunteer is registered, verify PIN
-    if (volunteerInfo && volunteerInfo.pin !== pin) {
-      toast.error("Incorrect PIN. Please try again.");
+    // Validate daily code
+    const savedCode = localStorage.getItem("dailyCode");
+    if (!savedCode) {
+      toast.error("No active check-in code", {
+        description: "Please check with your coordinator.",
+      });
       return;
     }
 
+    const activeCode = JSON.parse(savedCode);
+
+    // Check if code has expired
+    if (new Date(activeCode.expiresAt) <= new Date()) {
+      toast.error("Check-in code has expired", {
+        description: "Please check with your coordinator for today's code.",
+      });
+      setDailyCode(""); // Clear the input
+      return;
+    }
+
+    // Ensure both codes are padded to 4 digits for comparison
+    const submittedCode = dailyCode.padStart(4, "0");
+    const storedCode = activeCode.code.padStart(4, "0");
+
+    if (submittedCode !== storedCode) {
+      toast.error("Invalid check-in code", {
+        description: "Please check with your coordinator for the correct code.",
+      });
+      setDailyCode(""); // Clear the input on invalid code
+      return;
+    }
+
+    // Code is valid, proceed to next step
     setStep(3);
+    toast.success("Code verified successfully!");
   };
 
   const handleProgramSubmit = (e: React.FormEvent) => {
@@ -183,7 +211,7 @@ export default function CheckIn() {
           )}
 
           {step === 2 && (
-            <form onSubmit={handlePinSubmit}>
+            <form onSubmit={handleDailyCodeSubmit}>
               <div className="grid gap-4">
                 {volunteerInfo && (
                   <div className="p-3 bg-gray-50 rounded-md border">
@@ -192,19 +220,24 @@ export default function CheckIn() {
                       {volunteerInfo.lastName}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Please enter your PIN to continue
+                      Please enter today's check-in code
                     </p>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="pin">Verification PIN</Label>
+                  <Label htmlFor="dailyCode">Check-in Code</Label>
                   <Input
-                    id="pin"
-                    placeholder="Enter your PIN or last 4 digits of phone"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    type="password"
+                    id="dailyCode"
+                    placeholder="Enter 4-digit code"
+                    value={dailyCode}
+                    onChange={(e) => 
+                      setDailyCode(
+                        e.target.value.replace(/\D/g, "").slice(0, 4)
+                        
+                      )
+                    }
+                    type="text"
                     maxLength={4}
                     autoFocus
                   />
@@ -213,6 +246,16 @@ export default function CheckIn() {
               <Button
                 type="submit"
                 className="w-full mt-6 bg-red-700 hover:bg-red-800"
+                disabled={dailyCode.length !== 4}
+              onClick={() => {
+                const storedCode = localStorage.getItem("dailyCode");
+                if (storedCode && storedCode === dailyCode) {
+                  toast.success("Check-in code verified successfully!");
+                  setStep(3);
+                } else {
+                  toast.error("Invalid check-in code. Please try again.");
+                }
+              }}
               >
                 Verify
               </Button>
@@ -223,10 +266,10 @@ export default function CheckIn() {
             <form onSubmit={handleProgramSubmit}>
               <div className="grid gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="program">Select Program/Activity</Label>
+                  <Label htmlFor="program">Select Program</Label>
                   <Select value={program} onValueChange={setProgram}>
                     <SelectTrigger id="program">
-                      <SelectValue placeholder="Select a program" />
+                      <SelectValue placeholder="Choose a program" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="meal-service">Meal Service</SelectItem>
@@ -254,7 +297,7 @@ export default function CheckIn() {
               <Button
                 type="submit"
                 className="w-full mt-6 bg-red-700 hover:bg-red-800"
-                disabled={isLoading || !program}
+                disabled={!program || isLoading}
               >
                 {isLoading ? (
                   <>
@@ -262,7 +305,7 @@ export default function CheckIn() {
                     Checking in...
                   </>
                 ) : (
-                  "Complete Check-In"
+                  "Complete Check-in"
                 )}
               </Button>
             </form>
@@ -270,9 +313,11 @@ export default function CheckIn() {
         </CardContent>
         <CardFooter className="flex justify-center border-t pt-4">
           <p className="text-sm text-muted-foreground">
-            {step < 3
-              ? "Please complete all steps to check in"
-              : "Thank you for volunteering!"}
+            {step === 1
+              ? "Please enter your identifier to begin"
+              : step === 2
+              ? "Enter the code provided by your coordinator"
+              : "Select the program you're volunteering for"}
           </p>
         </CardFooter>
       </Card>
