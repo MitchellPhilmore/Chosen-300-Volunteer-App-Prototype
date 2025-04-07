@@ -123,19 +123,71 @@ export default function AdminDashboard() {
   };
 
   const exportData = () => {
-    // In a real app, this would generate a CSV file
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(completedSessions));
-    const downloadAnchorNode = document.createElement("a");
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "volunteer-data.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    // Define CSV headers
+    const headers = [
+      "Date",
+      "Volunteer Name",
+      "Program",
+      "Check-in Time",
+      "Check-out Time",
+      "Hours Worked",
+      "Rating",
+      "Email/Phone",
+    ];
+
+    // Convert session data to CSV rows
+    const rows = completedSessions.map((session) => {
+      const date = new Date(session.checkInTime).toLocaleDateString();
+      const checkInTime = new Date(session.checkInTime).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const checkOutTime = session.checkOutTime
+        ? new Date(session.checkOutTime).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "";
+
+      return [
+        date,
+        session.volunteerInfo
+          ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
+          : "Anonymous",
+        session.program
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase()),
+        checkInTime,
+        checkOutTime,
+        session.hoursWorked || "",
+        session.rating ? `${session.rating}/5` : "N/A",
+        session.identifier,
+      ].join(",");
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers.join(","), ...rows].join("\n");
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `volunteer-hours-${new Date()
+        .toLocaleDateString()
+        .replace(/\//g, "-")}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 
     toast.success("Data exported successfully", {
-      description: "Your volunteer data has been downloaded as a JSON file.",
+      description:
+        "Your volunteer data has been downloaded as a CSV file that can be opened in Excel or Google Sheets.",
     });
   };
 

@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { Clock, Calendar, Award, History, LogOut, Loader2 } from "lucide-react";
+import {
+  Clock,
+  Calendar,
+  Award,
+  History,
+  LogOut,
+  Loader2,
+  Star,
+} from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -54,6 +62,7 @@ interface VolunteerSession {
     lastName: string;
   };
   adminCode: string;
+  rating?: number;
 }
 
 export default function VolunteerDashboard() {
@@ -72,6 +81,8 @@ export default function VolunteerDashboard() {
   const [activeSession, setActiveSession] = useState<VolunteerSession | null>(
     null
   );
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const [rating, setRating] = useState(0);
 
   useEffect(() => {
     // Only run on client side
@@ -170,6 +181,11 @@ export default function VolunteerDashboard() {
 
   const handleCheckOut = () => {
     if (!activeSession || !volunteer) return;
+    setShowRatingDialog(true);
+  };
+
+  const handleRatingSubmit = () => {
+    if (!activeSession || !volunteer) return;
 
     // Calculate hours
     const checkInTime = new Date(activeSession.checkInTime);
@@ -184,6 +200,7 @@ export default function VolunteerDashboard() {
       ...activeSession,
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked,
+      rating,
     };
 
     // Update localStorage
@@ -208,6 +225,8 @@ export default function VolunteerDashboard() {
 
     setActiveSession(null);
     setVolunteerHistory([completedSession, ...volunteerHistory]);
+    setShowRatingDialog(false);
+    setRating(0);
 
     toast.success("Check-out successful!", {
       description: `Thank you for volunteering! You contributed ${hoursWorked} hours.`,
@@ -539,7 +558,9 @@ export default function VolunteerDashboard() {
                           {formatTime(session.checkInTime)}
                         </td>
                         <td className="py-3 px-4">
-                          {session.checkOutTime ? formatTime(session.checkOutTime) : "N/A"}
+                          {session.checkOutTime
+                            ? formatTime(session.checkOutTime)
+                            : "N/A"}
                         </td>
                         <td className="py-3 px-4">{session.hoursWorked}</td>
                       </tr>
@@ -557,6 +578,43 @@ export default function VolunteerDashboard() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rate Your Experience</DialogTitle>
+              <DialogDescription>
+                How was your volunteer experience today?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex justify-center space-x-2 py-4">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Button
+                  key={star}
+                  variant="ghost"
+                  size="icon"
+                  className={`h-12 w-12 ${
+                    rating >= star ? "text-red-700" : "text-gray-300"
+                  }`}
+                  onClick={() => setRating(star)}
+                >
+                  <Star className="h-8 w-8 fill-current" />
+                </Button>
+              ))}
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={handleRatingSubmit}
+                className="bg-red-700 hover:bg-red-800"
+                disabled={rating === 0}
+              >
+                Submit & Finish
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </div>
   );
