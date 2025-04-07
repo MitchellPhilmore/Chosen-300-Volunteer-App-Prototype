@@ -1,25 +1,32 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Loader2 } from "lucide-react"
-import { toast } from "sonner"
-import { motion } from "framer-motion"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Register() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [step, setStep] = useState(1)
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState(1);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -43,16 +50,18 @@ export default function Register() {
       weekendEvening: false,
     },
     interests: [] as string[],
-  })
+  });
 
   // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-    }))
-  }
+    }));
+  };
 
   // Handle checkbox changes for availability
   const handleAvailabilityChange = (key: string) => {
@@ -62,99 +71,114 @@ export default function Register() {
         ...prev.availability,
         [key]: !prev.availability[key as keyof typeof prev.availability],
       },
-    }))
-  }
+    }));
+  };
 
   // Handle interest selection
   const handleInterestChange = (interest: string) => {
     setFormData((prev) => {
-      const currentInterests = [...prev.interests]
+      const currentInterests = [...prev.interests];
       if (currentInterests.includes(interest)) {
         return {
           ...prev,
           interests: currentInterests.filter((i) => i !== interest),
-        }
+        };
       } else {
         return {
           ...prev,
           interests: [...currentInterests, interest],
-        }
+        };
       }
-    })
-  }
+    });
+  };
 
   // Form validation for each step
   const validateStep = () => {
     if (step === 1) {
       if (!formData.firstName || !formData.lastName) {
-        toast.error("Please enter your full name")
-        return false
+        toast.error("Please enter your full name");
+        return false;
       }
 
       if (!formData.email && !formData.phone) {
-        toast.error("Please provide either an email or phone number")
-        return false
+        toast.error("Please provide either an email or phone number");
+        return false;
       }
 
       if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
-        toast.error("Please enter a valid email address")
-        return false
+        toast.error("Please enter a valid email address");
+        return false;
       }
     } else if (step === 2) {
       if (!formData.emergencyName || !formData.emergencyPhone) {
-        toast.error("Please provide emergency contact information")
-        return false
+        toast.error("Please provide emergency contact information");
+        return false;
+      }
+    } else if (step === 3) {
+      // Validate availability
+      const hasAvailability = Object.values(formData.availability).some(
+        Boolean
+      );
+      if (!hasAvailability) {
+        toast.error("Please select at least one availability time slot");
+        return false;
+      }
+
+      // Validate interests
+      if (formData.interests.length === 0) {
+        toast.error("Please select at least one area of interest");
+        return false;
       }
     }
 
-    return true
-  }
+    return true;
+  };
 
   const nextStep = () => {
     if (validateStep()) {
-      setStep(step + 1)
-      window.scrollTo(0, 0)
+      setStep(step + 1);
+      window.scrollTo(0, 0);
     }
-  }
+  };
 
   const prevStep = () => {
-    setStep(step - 1)
-    window.scrollTo(0, 0)
-  }
+    setStep(step - 1);
+    window.scrollTo(0, 0);
+  };
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!validateStep()) return
+    if (!validateStep()) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     // In a real app, this would be an API call to register the volunteer
     setTimeout(() => {
       // Store volunteer data in localStorage
-      const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]")
+      const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
 
       // Create a unique ID for the volunteer
-      const volunteerId = `vol-${Date.now()}`
+      const volunteerId = `vol-${Date.now()}`;
 
       const newVolunteer = {
         id: volunteerId,
         ...formData,
         registrationDate: new Date().toISOString(),
-      }
+      };
 
-      volunteers.push(newVolunteer)
-      localStorage.setItem("volunteers", JSON.stringify(volunteers))
+      volunteers.push(newVolunteer);
+      localStorage.setItem("volunteers", JSON.stringify(volunteers));
 
       toast.success("Registration successful!", {
         description: "Thank you for registering as a volunteer.",
-      })
+      });
 
-      setIsLoading(false)
-      router.push(`/volunteer-dashboard/${volunteerId}`)
-    }, 1500)
-  }
+      setIsLoading(false);
+      router.push(`/volunteer-dashboard/${volunteerId}`);
+    }, 1500);
+  };
 
   const renderStepContent = () => {
     switch (step) {
@@ -175,61 +199,109 @@ export default function Register() {
                   <Label htmlFor="firstName">
                     First Name <span className="text-red-700">*</span>
                   </Label>
-                  <Input id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} required />
+                  <Input
+                    id="firstName"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName">
                     Last Name <span className="text-red-700">*</span>
                   </Label>
-                  <Input id="lastName" name="lastName" value={formData.lastName} onChange={handleChange} required />
+                  <Input
+                    id="lastName"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="phone">
                     Phone Number <span className="text-red-700">*</span>
                   </Label>
-                  <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+                  <Input
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="address">Street Address</Label>
-                <Input id="address" name="address" value={formData.address} onChange={handleChange} />
+                <Input
+                  id="address"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" name="city" value={formData.city} onChange={handleChange} />
+                  <Input
+                    id="city"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="state">State</Label>
-                  <Input id="state" name="state" value={formData.state} onChange={handleChange} />
+                  <Input
+                    id="state"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="zip">ZIP Code</Label>
-                  <Input id="zip" name="zip" value={formData.zip} onChange={handleChange} />
+                  <Input
+                    id="zip"
+                    name="zip"
+                    value={formData.zip}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
             </div>
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button type="button" onClick={nextStep} className="w-full bg-red-700 hover:bg-red-800">
+              <Button
+                type="button"
+                onClick={nextStep}
+                className="w-full bg-red-700 hover:bg-red-800"
+              >
                 Continue to Emergency Contact
               </Button>
             </motion.div>
           </motion.div>
-        )
+        );
 
       case 2:
         return (
@@ -282,14 +354,22 @@ export default function Register() {
                 Back
               </Button>
 
-              <motion.div className="w-1/2" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button type="button" onClick={nextStep} className="w-full bg-red-700 hover:bg-red-800">
+              <motion.div
+                className="w-1/2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  className="w-full bg-red-700 hover:bg-red-800"
+                >
                   Continue to Preferences
                 </Button>
               </motion.div>
             </div>
           </motion.div>
-        )
+        );
 
       case 3:
         return (
@@ -303,9 +383,9 @@ export default function Register() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Volunteer Preferences</h3>
 
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Label>Areas of Interest</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     "Meal Service",
                     "Food Pantry",
@@ -316,11 +396,12 @@ export default function Register() {
                     "Fundraising",
                     "Facilities Maintenance",
                   ].map((interest) => (
-                    <div key={interest} className="flex items-center space-x-2">
+                    <div key={interest} className="flex items-center space-x-3">
                       <Checkbox
                         id={`interest-${interest}`}
                         checked={formData.interests.includes(interest)}
                         onCheckedChange={() => handleInterestChange(interest)}
+                        className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
                       />
                       <label
                         htmlFor={`interest-${interest}`}
@@ -333,54 +414,90 @@ export default function Register() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Label>Availability</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-3 grid grid-cols-4 items-center">
-                    <div></div>
-                    <div className="text-center text-sm font-medium">Morning</div>
-                    <div className="text-center text-sm font-medium">Afternoon</div>
-                    <div className="text-center text-sm font-medium">Evening</div>
-                  </div>
+                <div className="border rounded-lg p-4">
+                  <div className="grid grid-cols-4 gap-6">
+                    {/* Header Row */}
+                    <div className="col-start-2 col-span-3 grid grid-cols-3 gap-4">
+                      <div className="text-center text-sm font-medium text-gray-600">
+                        Morning
+                      </div>
+                      <div className="text-center text-sm font-medium text-gray-600">
+                        Afternoon
+                      </div>
+                      <div className="text-center text-sm font-medium text-gray-600">
+                        Evening
+                      </div>
+                    </div>
 
-                  <div className="text-sm font-medium">Weekdays</div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekdayMorning}
-                      onCheckedChange={() => handleAvailabilityChange("weekdayMorning")}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekdayAfternoon}
-                      onCheckedChange={() => handleAvailabilityChange("weekdayAfternoon")}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekdayEvening}
-                      onCheckedChange={() => handleAvailabilityChange("weekdayEvening")}
-                    />
-                  </div>
+                    {/* Weekday Row */}
+                    <div className="text-sm font-medium text-gray-700">
+                      Weekdays
+                    </div>
+                    <div className="col-span-3 grid grid-cols-3 gap-4">
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekdayMorning}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekdayMorning")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekdayAfternoon}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekdayAfternoon")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekdayEvening}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekdayEvening")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                    </div>
 
-                  <div className="text-sm font-medium">Weekends</div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekendMorning}
-                      onCheckedChange={() => handleAvailabilityChange("weekendMorning")}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekendAfternoon}
-                      onCheckedChange={() => handleAvailabilityChange("weekendAfternoon")}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <Checkbox
-                      checked={formData.availability.weekendEvening}
-                      onCheckedChange={() => handleAvailabilityChange("weekendEvening")}
-                    />
+                    {/* Weekend Row */}
+                    <div className="text-sm font-medium text-gray-700">
+                      Weekends
+                    </div>
+                    <div className="col-span-3 grid grid-cols-3 gap-4">
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekendMorning}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekendMorning")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekendAfternoon}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekendAfternoon")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={formData.availability.weekendEvening}
+                          onCheckedChange={() =>
+                            handleAvailabilityChange("weekendEvening")
+                          }
+                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -408,8 +525,16 @@ export default function Register() {
                 Back
               </Button>
 
-              <motion.div className="w-1/2" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button type="submit" className="w-full bg-red-700 hover:bg-red-800" disabled={isLoading}>
+              <motion.div
+                className="w-1/2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  type="submit"
+                  className="w-full bg-red-700 hover:bg-red-800"
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -422,16 +547,20 @@ export default function Register() {
               </motion.div>
             </div>
           </motion.div>
-        )
+        );
 
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <Card className="max-w-3xl mx-auto border-none shadow-lg">
           <CardHeader>
             <div className="flex items-center">
@@ -442,7 +571,9 @@ export default function Register() {
               </Link>
               <div>
                 <CardTitle>Volunteer Registration</CardTitle>
-                <CardDescription>Register as a new volunteer with Chosen 300</CardDescription>
+                <CardDescription>
+                  Register as a new volunteer with Chosen 300
+                </CardDescription>
               </div>
             </div>
 
@@ -453,9 +584,15 @@ export default function Register() {
               ></div>
             </div>
             <div className="flex justify-between text-xs text-gray-500 px-1">
-              <span className={step >= 1 ? "text-red-700 font-medium" : ""}>Personal Info</span>
-              <span className={step >= 2 ? "text-red-700 font-medium" : ""}>Emergency Contact</span>
-              <span className={step >= 3 ? "text-red-700 font-medium" : ""}>Preferences</span>
+              <span className={step >= 1 ? "text-red-700 font-medium" : ""}>
+                Personal Info
+              </span>
+              <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
+                Emergency Contact
+              </span>
+              <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
+                Preferences
+              </span>
             </div>
           </CardHeader>
           <CardContent>
@@ -469,6 +606,5 @@ export default function Register() {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }
-
