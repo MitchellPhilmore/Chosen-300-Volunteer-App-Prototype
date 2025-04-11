@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -41,6 +41,9 @@ export default function Register() {
     emergencyName: "",
     emergencyPhone: "",
     skills: "",
+    volunteerType: "",
+    serviceReason: "",
+    serviceInstitution: "",
     availability: {
       weekdayMorning: false,
       weekdayAfternoon: false,
@@ -51,6 +54,20 @@ export default function Register() {
     },
     interests: [] as string[],
   });
+
+  // Load volunteer type from localStorage if it exists
+  useEffect(() => {
+    const savedType = localStorage.getItem("volunteerType");
+    if (savedType) {
+      setFormData((prev) => ({
+        ...prev,
+        volunteerType: savedType,
+      }));
+    } else {
+      // If no type is saved, redirect to type selection
+      router.push("/volunteer-type");
+    }
+  }, [router]);
 
   // Handle form input changes
   const handleChange = (
@@ -108,6 +125,17 @@ export default function Register() {
       if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
         toast.error("Please enter a valid email address");
         return false;
+      }
+
+      if (formData.volunteerType === "communityService") {
+        if (!formData.serviceReason) {
+          toast.error("Please enter the reason for your community service");
+          return false;
+        }
+        if (!formData.serviceInstitution) {
+          toast.error("Please enter the institution requiring your service");
+          return false;
+        }
       }
     } else if (step === 2) {
       if (!formData.emergencyName || !formData.emergencyPhone) {
@@ -247,6 +275,41 @@ export default function Register() {
                   />
                 </div>
               </div>
+
+              {formData.volunteerType === "communityService" && (
+                <div className="space-y-4 border-t pt-4 mt-4">
+                  <h4 className="font-medium">Community Service Information</h4>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceReason">
+                      Reason for Service <span className="text-red-700">*</span>
+                    </Label>
+                    <Input
+                      id="serviceReason"
+                      name="serviceReason"
+                      value={formData.serviceReason}
+                      onChange={handleChange}
+                      placeholder="e.g., Court ordered, School requirement"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceInstitution">
+                      Assigning Institution{" "}
+                      <span className="text-red-700">*</span>
+                    </Label>
+                    <Input
+                      id="serviceInstitution"
+                      name="serviceInstitution"
+                      value={formData.serviceInstitution}
+                      onChange={handleChange}
+                      placeholder="e.g., Philadelphia Municipal Court, Central High School"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="address">Street Address</Label>

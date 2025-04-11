@@ -86,7 +86,7 @@ export default function SplashScreen() {
 
           <motion.div variants={item}>
             <Button
-              onClick={() => router.push("/register")}
+              onClick={() => router.push("/volunteer-type")}
               size="lg"
               variant="outline"
               className="w-full h-20 text-xl border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800 group relative overflow-hidden"

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Volunteer {
   id: string;
@@ -56,6 +57,7 @@ interface VolunteerSession {
   checkInTime: string;
   checkOutTime?: string | undefined;
   hoursWorked?: string;
+  location: string;
   volunteerInfo: {
     id: string;
     firstName: string;
@@ -63,6 +65,7 @@ interface VolunteerSession {
   };
   adminCode: string;
   rating?: number;
+  comments?: string;
 }
 
 export default function VolunteerDashboard() {
@@ -75,6 +78,7 @@ export default function VolunteerDashboard() {
   const [adminCode, setAdminCode] = useState("");
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("");
   const [volunteerHistory, setVolunteerHistory] = useState<VolunteerSession[]>(
     []
   );
@@ -83,6 +87,12 @@ export default function VolunteerDashboard() {
   );
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [rating, setRating] = useState(0);
+  const [comments, setComments] = useState({
+    highlights: "",
+    feedback: "",
+    issues: "",
+    hadFun: false,
+  });
 
   useEffect(() => {
     // Only run on client side
@@ -137,6 +147,11 @@ export default function VolunteerDashboard() {
       return;
     }
 
+    if (!selectedLocation) {
+      toast.error("Please select a location");
+      return;
+    }
+
     // Validate admin code
     const savedCode = localStorage.getItem("dailyCode");
     if (!savedCode) {
@@ -177,6 +192,7 @@ export default function VolunteerDashboard() {
       const checkInData: VolunteerSession = {
         identifier: volunteer.email || volunteer.phone,
         program: selectedProgram,
+        location: selectedLocation,
         checkInTime: new Date().toISOString(),
         volunteerInfo: {
           id: volunteer.id,
@@ -232,6 +248,10 @@ export default function VolunteerDashboard() {
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked,
       rating,
+      comments:
+        comments.highlights || comments.feedback || comments.issues
+          ? JSON.stringify(comments)
+          : undefined,
     };
 
     // Update localStorage
@@ -390,6 +410,14 @@ export default function VolunteerDashboard() {
                           .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </p>
                       <p className="text-sm text-green-700">
+                        <span className="font-medium">Location:</span>{" "}
+                        {activeSession.location
+                          ? activeSession.location
+                              .replace(/-/g, " ")
+                              .replace(/\b\w/g, (l: string) => l.toUpperCase())
+                          : "N/A"}
+                      </p>
+                      <p className="text-sm text-green-700">
                         <span className="font-medium">Check-in time:</span>{" "}
                         {formatTime(activeSession.checkInTime)}
                       </p>
@@ -473,6 +501,31 @@ export default function VolunteerDashboard() {
                               <option value="facilities">
                                 Facilities Maintenance
                               </option>
+                            </select>
+                          </div>
+
+                          <div className="grid gap-2">
+                            <Label htmlFor="location">
+                              Select Location{" "}
+                              <span className="text-red-700">*</span>
+                            </Label>
+                            <select
+                              id="location"
+                              value={selectedLocation}
+                              onChange={(e) =>
+                                setSelectedLocation(e.target.value)
+                              }
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              required
+                            >
+                              <option value="">Select a location</option>
+                              <option value="west-philadelphia">
+                                West Philadelphia
+                              </option>
+                              <option value="spring-garden">
+                                Spring Garden
+                              </option>
+                              <option value="ambler">Ambler</option>
                             </select>
                           </div>
 
@@ -572,6 +625,9 @@ export default function VolunteerDashboard() {
                         Program
                       </th>
                       <th className="text-left py-3 px-4 font-medium">
+                        Location
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium">
                         Time In
                       </th>
                       <th className="text-left py-3 px-4 font-medium">
@@ -590,6 +646,15 @@ export default function VolunteerDashboard() {
                           {session.program
                             .replace(/-/g, " ")
                             .replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                        </td>
+                        <td className="py-3 px-4">
+                          {session.location
+                            ? session.location
+                                .replace(/-/g, " ")
+                                .replace(/\b\w/g, (l: string) =>
+                                  l.toUpperCase()
+                                )
+                            : "N/A"}
                         </td>
                         <td className="py-3 px-4">
                           {formatTime(session.checkInTime)}
@@ -617,7 +682,7 @@ export default function VolunteerDashboard() {
         </Card>
 
         <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Rate Your Experience</DialogTitle>
               <DialogDescription>
@@ -639,6 +704,56 @@ export default function VolunteerDashboard() {
                   <Star className="h-8 w-8 fill-current" />
                 </Button>
               ))}
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="highlights">Highlights</Label>
+                <Input
+                  id="highlights"
+                  placeholder="What went well during your service?"
+                  value={comments.highlights}
+                  onChange={(e) =>
+                    setComments({ ...comments, highlights: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="feedback">Feedback</Label>
+                <Input
+                  id="feedback"
+                  placeholder="Any suggestions for improvement?"
+                  value={comments.feedback}
+                  onChange={(e) =>
+                    setComments({ ...comments, feedback: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="issues">Issues</Label>
+                <Input
+                  id="issues"
+                  placeholder="Any problems you encountered?"
+                  value={comments.issues}
+                  onChange={(e) =>
+                    setComments({ ...comments, issues: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hadFun"
+                  checked={comments.hadFun}
+                  onCheckedChange={(checked: boolean | "indeterminate") =>
+                    setComments({ ...comments, hadFun: checked === true })
+                  }
+                  className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
+                />
+                <Label htmlFor="hadFun">I had fun volunteering today</Label>
+              </div>
             </div>
 
             <DialogFooter>
