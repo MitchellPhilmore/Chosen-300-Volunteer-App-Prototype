@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Music,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,11 +51,36 @@ interface VolunteerSession {
   };
 }
 
+interface Musician {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone: string;
+  instrument: string;
+  registrationDate: string;
+}
+
+interface MusicianSession {
+  musicianId: string;
+  activity: string;
+  signInTime: string;
+  checkOutTime?: string;
+  musicianInfo?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    instrument: string;
+  };
+}
+
 interface Stats {
   totalHours: number;
   totalVolunteers: number;
+  totalMusicians: number;
   averageRating: number;
   registeredCount: number;
+  registeredMusicians: number;
 }
 
 interface DailyCode {
@@ -75,18 +101,27 @@ export default function AdminDashboard() {
   const [activeVolunteers, setActiveVolunteers] = useState<VolunteerSession[]>(
     []
   );
+  const [activeMusicians, setActiveMusicians] = useState<MusicianSession[]>([]);
   const [completedSessions, setCompletedSessions] = useState<
     VolunteerSession[]
   >([]);
+  const [completedMusicianSessions, setCompletedMusicianSessions] = useState<
+    MusicianSession[]
+  >([]);
   const [registeredVolunteers, setRegisteredVolunteers] = useState<Volunteer[]>(
+    []
+  );
+  const [registeredMusicians, setRegisteredMusicians] = useState<Musician[]>(
     []
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [stats, setStats] = useState<Stats>({
     totalHours: 0,
     totalVolunteers: 0,
+    totalMusicians: 0,
     averageRating: 0,
     registeredCount: 0,
+    registeredMusicians: 0,
   });
   const [dailyCode, setDailyCode] = useState<DailyCode | null>(null);
   const [showCode, setShowCode] = useState(false);
@@ -94,16 +129,43 @@ export default function AdminDashboard() {
   const [auditLog, setAuditLog] = useState<CodeAuditLog[]>([]);
 
   useEffect(() => {
-    // In a real app, this would be an API call
+    // Load all data
     const active = JSON.parse(localStorage.getItem("activeVolunteers") || "[]");
     const completed = JSON.parse(
       localStorage.getItem("completedSessions") || "[]"
     );
     const registered = JSON.parse(localStorage.getItem("volunteers") || "[]");
+    const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
+    const musicianSignIns = JSON.parse(
+      localStorage.getItem("musicianSignIns") || "[]"
+    );
 
+    // Check for expired musician sessions (after midnight)
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+
+    const activeMusicians = musicianSignIns.filter(
+      (session: MusicianSession) => {
+        const signInTime = new Date(session.signInTime);
+        return signInTime >= midnight;
+      }
+    );
+
+    const completedMusicians = musicianSignIns.filter(
+      (session: MusicianSession) => {
+        const signInTime = new Date(session.signInTime);
+        return signInTime < midnight;
+      }
+    );
+
+    // Update state
     setActiveVolunteers(active);
     setCompletedSessions(completed);
     setRegisteredVolunteers(registered);
+    setRegisteredMusicians(musicians);
+    setActiveMusicians(activeMusicians);
+    setCompletedMusicianSessions(completedMusicians);
 
     // Calculate stats
     if (completed.length > 0) {
@@ -124,16 +186,19 @@ export default function AdminDashboard() {
       setStats({
         totalHours: Number.parseFloat(totalHours.toFixed(2)),
         totalVolunteers: completed.length,
+        totalMusicians: completedMusicians.length,
         averageRating:
           ratingsCount > 0
             ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
             : 0,
         registeredCount: registered.length,
+        registeredMusicians: musicians.length,
       });
     } else {
       setStats((prev) => ({
         ...prev,
         registeredCount: registered.length,
+        registeredMusicians: musicians.length,
       }));
     }
 
@@ -296,7 +361,7 @@ export default function AdminDashboard() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
@@ -322,6 +387,18 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
+              Total Musicians
+            </CardTitle>
+            <Music className="h-4 w-4 text-red-700" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalMusicians}</div>
+            <p className="text-xs text-muted-foreground">Unique musicians</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
               Average Rating
             </CardTitle>
             <Calendar className="h-4 w-4 text-red-700" />
@@ -342,6 +419,20 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.registeredCount}</div>
+            <p className="text-xs text-muted-foreground">Total registered</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Registered Musicians
+            </CardTitle>
+            <Music className="h-4 w-4 text-red-700" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {stats.registeredMusicians}
+            </div>
             <p className="text-xs text-muted-foreground">Total registered</p>
           </CardContent>
         </Card>
@@ -430,16 +521,34 @@ export default function AdminDashboard() {
             Active Volunteers ({activeVolunteers.length})
           </TabsTrigger>
           <TabsTrigger
+            value="active-musicians"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
+            Active Musicians ({activeMusicians.length})
+          </TabsTrigger>
+          <TabsTrigger
             value="completed"
             className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
           >
             Completed Sessions ({completedSessions.length})
           </TabsTrigger>
           <TabsTrigger
+            value="completed-musicians"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
+            Completed Musician Sessions ({completedMusicianSessions.length})
+          </TabsTrigger>
+          <TabsTrigger
             value="registered"
             className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
           >
             Registered Volunteers ({registeredVolunteers.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="registered-musicians"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
+            Registered Musicians ({registeredMusicians.length})
           </TabsTrigger>
         </TabsList>
 
@@ -487,6 +596,59 @@ export default function AdminDashboard() {
           )}
         </TabsContent>
 
+        <TabsContent value="active-musicians" className="border rounded-md p-4">
+          {activeMusicians.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Musician</TableHead>
+                  <TableHead>Instrument</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead>Check-in Time</TableHead>
+                  <TableHead>Duration</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeMusicians.map((musician, index) => {
+                  const musicianInfo = registeredMusicians.find(
+                    (m) => m.id === musician.musicianId
+                  );
+                  return (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {musicianInfo
+                          ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+                          : "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        {musicianInfo?.instrument || "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        {musician.activity.replace(/\b\w/g, (l: string) =>
+                          l.toUpperCase()
+                        )}
+                      </TableCell>
+                      <TableCell>{formatTime(musician.signInTime)}</TableCell>
+                      <TableCell>
+                        {Math.round(
+                          (new Date().getTime() -
+                            new Date(musician.signInTime).getTime()) /
+                            60000
+                        )}{" "}
+                        min
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              No active musicians at this time
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="completed" className="border rounded-md p-4">
           {completedSessions.length > 0 ? (
             <Table>
@@ -524,6 +686,64 @@ export default function AdminDashboard() {
           ) : (
             <div className="text-center py-4 text-muted-foreground">
               No completed sessions yet
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="completed-musicians"
+          className="border rounded-md p-4"
+        >
+          {completedMusicianSessions.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Musician</TableHead>
+                  <TableHead>Instrument</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Duration</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {completedMusicianSessions.map((session, index) => {
+                  const musicianInfo = registeredMusicians.find(
+                    (m) => m.id === session.musicianId
+                  );
+                  return (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {musicianInfo
+                          ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+                          : "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        {musicianInfo?.instrument || "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        {session.activity.replace(/\b\w/g, (l: string) =>
+                          l.toUpperCase()
+                        )}
+                      </TableCell>
+                      <TableCell>{formatDate(session.signInTime)}</TableCell>
+                      <TableCell>
+                        {Math.round(
+                          (new Date(session.signInTime).getTime() -
+                            new Date(
+                              session.checkOutTime || new Date()
+                            ).getTime()) /
+                            60000
+                        )}{" "}
+                        min
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              No completed musician sessions yet
             </div>
           )}
         </TabsContent>
@@ -576,6 +796,55 @@ export default function AdminDashboard() {
               {searchTerm
                 ? "No volunteers match your search"
                 : "No registered volunteers yet"}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="registered-musicians"
+          className="border rounded-md p-4"
+        >
+          <div className="mb-4 flex items-center">
+            <Search className="mr-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search musicians..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+
+          {registeredMusicians.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Instrument</TableHead>
+                  <TableHead>Registration Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {registeredMusicians.map((musician, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      {musician.firstName} {musician.lastName}
+                    </TableCell>
+                    <TableCell>
+                      <div>{musician.email}</div>
+                      <div>{musician.phone}</div>
+                    </TableCell>
+                    <TableCell>{musician.instrument}</TableCell>
+                    <TableCell>
+                      {formatDate(musician.registrationDate)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              No registered musicians yet
             </div>
           )}
         </TabsContent>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
+import { ArrowLeft, Music, LogIn } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function SignIn() {
+export default function MusicianSignIn() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState("");
 
@@ -33,36 +33,22 @@ export default function SignIn() {
     // Normalize phone number (remove non-digits)
     const normalizedPhone = phoneNumber.replace(/\D/g, "");
 
-    // Check if user is a musician
+    // Get musicians from localStorage
     const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
     const musician = musicians.find(
       (m: any) => m.phone.replace(/\D/g, "") === normalizedPhone
     );
 
-    if (musician) {
-      // Store current musician ID in localStorage for session management
-      localStorage.setItem("currentMusicianId", musician.id);
-      toast.success("Signed in successfully!");
-      router.push(`/musician-dashboard/${musician.id}`);
+    if (!musician) {
+      toast.error("No musician found with this phone number");
       return;
     }
 
-    // Check if user is a volunteer
-    const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
-    const volunteer = volunteers.find(
-      (v: any) => v.phone.replace(/\D/g, "") === normalizedPhone
-    );
+    // Store current musician ID in localStorage for session management
+    localStorage.setItem("currentMusicianId", musician.id);
 
-    if (volunteer) {
-      // Store current volunteer ID in localStorage for session management
-      localStorage.setItem("currentVolunteerId", volunteer.id);
-      toast.success("Signed in successfully!");
-      router.push(`/volunteer-dashboard/${volunteer.id}`);
-      return;
-    }
-
-    // If no match found
-    toast.error("No account found with this phone number");
+    toast.success("Signed in successfully!");
+    router.push(`/musician-dashboard/${musician.id}`);
   };
 
   return (
@@ -81,7 +67,7 @@ export default function SignIn() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Sign In</CardTitle>
+                <CardTitle>Musician Sign In</CardTitle>
                 <CardDescription>
                   Sign in with your phone number
                 </CardDescription>
@@ -119,21 +105,12 @@ export default function SignIn() {
 
               <div className="text-center text-sm text-gray-600">
                 <p>Don't have an account?</p>
-                <div className="flex justify-center space-x-4 mt-2">
-                  <Link
-                    href="/volunteer-type"
-                    className="text-red-700 hover:underline"
-                  >
-                    Register as Volunteer
-                  </Link>
-                  <span className="text-gray-400">|</span>
-                  <Link
-                    href="/musician-register"
-                    className="text-red-700 hover:underline"
-                  >
-                    Register as Musician
-                  </Link>
-                </div>
+                <Link
+                  href="/musician-register"
+                  className="text-red-700 hover:underline"
+                >
+                  Register as a musician
+                </Link>
               </div>
             </form>
           </CardContent>
