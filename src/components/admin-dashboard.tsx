@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Calendar,
   Clock,
@@ -11,6 +11,8 @@ import {
   EyeOff,
   RefreshCw,
   Music,
+  LogOut,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +37,17 @@ interface Volunteer {
   phone: string;
   interests?: string[];
   registrationDate: string;
+  volunteerType: "regular" | "communityService" | string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
+  skills?: string;
+  serviceReason?: string;
+  serviceInstitution?: string;
+  availability?: any;
 }
 
 interface VolunteerSession {
@@ -44,6 +57,7 @@ interface VolunteerSession {
   checkOutTime?: string;
   hoursWorked?: string;
   rating?: number;
+  location?: string;
   volunteerInfo?: {
     id: string;
     firstName: string;
@@ -57,7 +71,7 @@ interface Musician {
   lastName: string;
   email?: string;
   phone: string;
-  instrument: string;
+  instruments: string[];
   registrationDate: string;
 }
 
@@ -70,7 +84,7 @@ interface MusicianSession {
     id: string;
     firstName: string;
     lastName: string;
-    instrument: string;
+    instruments: string[];
   };
 }
 
@@ -128,8 +142,7 @@ export default function AdminDashboard() {
   const [newCode, setNewCode] = useState("");
   const [auditLog, setAuditLog] = useState<CodeAuditLog[]>([]);
 
-  useEffect(() => {
-    // Load all data
+  const loadDashboardData = useCallback(() => {
     const active = JSON.parse(localStorage.getItem("activeVolunteers") || "[]");
     const completed = JSON.parse(
       localStorage.getItem("completedSessions") || "[]"
@@ -140,84 +153,76 @@ export default function AdminDashboard() {
       localStorage.getItem("musicianSignIns") || "[]"
     );
 
-    // Check for expired musician sessions (after midnight)
     const now = new Date();
     const midnight = new Date(now);
     midnight.setHours(0, 0, 0, 0);
 
-    const activeMusicians = musicianSignIns.filter(
+    const activeMusiciansData = musicianSignIns.filter(
       (session: MusicianSession) => {
         const signInTime = new Date(session.signInTime);
-        return signInTime >= midnight;
+        return signInTime >= midnight && !session.checkOutTime;
       }
     );
 
-    const completedMusicians = musicianSignIns.filter(
+    const completedMusiciansData = musicianSignIns.filter(
       (session: MusicianSession) => {
         const signInTime = new Date(session.signInTime);
-        return signInTime < midnight;
+        return session.checkOutTime || signInTime < midnight;
       }
     );
 
-    // Update state
     setActiveVolunteers(active);
     setCompletedSessions(completed);
     setRegisteredVolunteers(registered);
     setRegisteredMusicians(musicians);
-    setActiveMusicians(activeMusicians);
-    setCompletedMusicianSessions(completedMusicians);
+    setActiveMusicians(activeMusiciansData);
+    setCompletedMusicianSessions(completedMusiciansData);
 
-    // Calculate stats
-    if (completed.length > 0) {
-      const totalHours = completed.reduce(
-        (sum: number, session: VolunteerSession) =>
-          sum + Number.parseFloat(session.hoursWorked || "0"),
-        0
-      );
+    const totalVolunteerHours = completed.reduce(
+      (sum: number, session: VolunteerSession) =>
+        sum + Number.parseFloat(session.hoursWorked || "0"),
+      0
+    );
+    const ratingsCount = completed.filter(
+      (s: VolunteerSession) => s.rating && s.rating > 0
+    ).length;
+    const ratingsSum = completed.reduce(
+      (sum: number, session: VolunteerSession) => sum + (session.rating || 0),
+      0
+    );
 
-      const ratingsCount = completed.filter(
-        (s: VolunteerSession) => s.rating && s.rating > 0
-      ).length;
-      const ratingsSum = completed.reduce(
-        (sum: number, session: VolunteerSession) => sum + (session.rating || 0),
-        0
-      );
+    setStats({
+      totalHours: Number.parseFloat(totalVolunteerHours.toFixed(2)),
+      totalVolunteers: completed.length,
+      totalMusicians: completedMusiciansData.length,
+      averageRating:
+        ratingsCount > 0
+          ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
+          : 0,
+      registeredCount: registered.length,
+      registeredMusicians: musicians.length,
+    });
 
-      setStats({
-        totalHours: Number.parseFloat(totalHours.toFixed(2)),
-        totalVolunteers: completed.length,
-        totalMusicians: completedMusicians.length,
-        averageRating:
-          ratingsCount > 0
-            ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
-            : 0,
-        registeredCount: registered.length,
-        registeredMusicians: musicians.length,
-      });
-    } else {
-      setStats((prev) => ({
-        ...prev,
-        registeredCount: registered.length,
-        registeredMusicians: musicians.length,
-      }));
-    }
-
-    // Load daily code
     const savedCode = localStorage.getItem("dailyCode");
     if (savedCode) {
       const parsedCode = JSON.parse(savedCode);
-      // Check if code has expired
       if (new Date(parsedCode.expiresAt) > new Date()) {
         setDailyCode(parsedCode);
+      } else {
+        setDailyCode(null);
+        localStorage.removeItem("dailyCode");
       }
     }
 
-    // Load audit log
     const savedAuditLog = localStorage.getItem("codeAuditLog");
     if (savedAuditLog) {
       setAuditLog(JSON.parse(savedAuditLog));
     }
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -230,73 +235,189 @@ export default function AdminDashboard() {
     });
   };
 
-  const exportData = () => {
-    // Define CSV headers
-    const headers = [
-      "Date",
-      "Volunteer Name",
-      "Program",
-      "Check-in Time",
-      "Check-out Time",
-      "Hours Worked",
-      "Rating",
-      "Email/Phone",
-    ];
+  const getVolunteerType = useCallback(
+    (volunteerId: string): string => {
+      const volunteer = registeredVolunteers.find((v) => v.id === volunteerId);
+      if (!volunteer || !volunteer.volunteerType) return "Unknown";
+      return volunteer.volunteerType === "communityService"
+        ? "Community Service"
+        : "Regular";
+    },
+    [registeredVolunteers]
+  );
 
-    // Convert session data to CSV rows
-    const rows = completedSessions.map((session) => {
-      const date = new Date(session.checkInTime).toLocaleDateString();
-      const checkInTime = new Date(session.checkInTime).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const checkOutTime = session.checkOutTime
-        ? new Date(session.checkOutTime).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "";
+  const generateCsv = (
+    headers: string[],
+    rows: string[][],
+    filename: string
+  ) => {
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row
+          .map((cell) => `"${(cell || "").toString().replace(/"/g, '""')}"`)
+          .join(",")
+      ),
+    ].join("\n");
 
-      return [
-        date,
-        session.volunteerInfo
-          ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
-          : "Anonymous",
-        session.program
-          .replace(/-/g, " ")
-          .replace(/\b\w/g, (l) => l.toUpperCase()),
-        checkInTime,
-        checkOutTime,
-        session.hoursWorked || "",
-        session.rating ? `${session.rating}/5` : "N/A",
-        session.identifier,
-      ].join(",");
-    });
-
-    // Combine headers and rows
-    const csvContent = [headers.join(","), ...rows].join("\n");
-
-    // Create and trigger download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-
     link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `volunteer-hours-${new Date()
-        .toLocaleDateString()
-        .replace(/\//g, "-")}.csv`
-    );
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    toast.success(`${filename} exported successfully`);
+  };
 
-    toast.success("Data exported successfully", {
-      description:
-        "Your volunteer data has been downloaded as a CSV file that can be opened in Excel or Google Sheets.",
+  const exportRegisteredVolunteers = () => {
+    const headers = [
+      "ID",
+      "First Name",
+      "Last Name",
+      "Email",
+      "Phone",
+      "Type",
+      "Interests",
+      "Address",
+      "City",
+      "State",
+      "ZIP",
+      "Emergency Name",
+      "Emergency Phone",
+      "Skills",
+      "Service Reason",
+      "Service Institution",
+      "Registration Date",
+    ];
+    const rows = registeredVolunteers.map((v) => [
+      v.id,
+      v.firstName,
+      v.lastName,
+      v.email || "",
+      v.phone,
+      v.volunteerType === "communityService" ? "Community Service" : "Regular",
+      v.interests?.join("; ") || "",
+      v.address || "",
+      v.city || "",
+      v.state || "",
+      v.zip || "",
+      v.emergencyName || "",
+      v.emergencyPhone || "",
+      v.skills || "",
+      v.serviceReason || "",
+      v.serviceInstitution || "",
+      formatDate(v.registrationDate),
+    ]);
+    generateCsv(
+      headers,
+      rows,
+      `registered-volunteers-${new Date().toISOString().split("T")[0]}.csv`
+    );
+  };
+
+  const exportCompletedVolunteerSessions = () => {
+    const headers = [
+      "Volunteer Name",
+      "Volunteer Type",
+      "Program",
+      "Location",
+      "Check-in Time",
+      "Check-out Time",
+      "Hours Worked",
+      "Rating",
+    ];
+    const rows = completedSessions.map((session) => [
+      session.volunteerInfo
+        ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
+        : session.identifier,
+      session.volunteerInfo
+        ? getVolunteerType(session.volunteerInfo.id)
+        : "Unknown",
+      session.program
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+      session.location || "N/A",
+      formatTime(session.checkInTime),
+      session.checkOutTime ? formatTime(session.checkOutTime) : "",
+      session.hoursWorked || "",
+      session.rating ? `${session.rating}/5` : "N/A",
+    ]);
+    generateCsv(
+      headers,
+      rows,
+      `completed-volunteer-sessions-${
+        new Date().toISOString().split("T")[0]
+      }.csv`
+    );
+  };
+
+  const exportRegisteredMusicians = () => {
+    const headers = [
+      "ID",
+      "First Name",
+      "Last Name",
+      "Email",
+      "Phone",
+      "Instruments",
+      "Registration Date",
+    ];
+    const rows = registeredMusicians.map((m) => [
+      m.id,
+      m.firstName,
+      m.lastName,
+      m.email || "",
+      m.phone,
+      m.instruments?.join("; ") || "",
+      formatDate(m.registrationDate),
+    ]);
+    generateCsv(
+      headers,
+      rows,
+      `registered-musicians-${new Date().toISOString().split("T")[0]}.csv`
+    );
+  };
+
+  const exportCompletedMusicianSessions = () => {
+    const headers = [
+      "Musician Name",
+      "Instruments",
+      "Activity",
+      "Sign-in Time",
+      "Sign-out Time",
+      "Duration (min)",
+    ];
+    const rows = completedMusicianSessions.map((session) => {
+      const musicianInfo = registeredMusicians.find(
+        (m) => m.id === session.musicianId
+      );
+      const duration = session.checkOutTime
+        ? Math.round(
+            (new Date(session.checkOutTime).getTime() -
+              new Date(session.signInTime).getTime()) /
+              60000
+          )
+        : "";
+      return [
+        musicianInfo
+          ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+          : "Unknown",
+        musicianInfo?.instruments?.join("; ") || "",
+        session.activity.replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        formatTime(session.signInTime),
+        session.checkOutTime ? formatTime(session.checkOutTime) : "",
+        duration.toString(),
+      ];
     });
+    generateCsv(
+      headers,
+      rows,
+      `completed-musician-sessions-${
+        new Date().toISOString().split("T")[0]
+      }.csv`
+    );
   };
 
   const filteredVolunteers = registeredVolunteers.filter((volunteer) => {
@@ -316,34 +437,30 @@ export default function AdminDashboard() {
 
   const saveCode = (code: string) => {
     const now = new Date();
-    // Set expiration to midnight of the next day
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
 
-    // Ensure code is a 4-digit string
     const formattedCode = code.padStart(4, "0").slice(0, 4);
 
     const codeData: DailyCode = {
       code: formattedCode,
       expiresAt: tomorrow.toISOString(),
       createdAt: now.toISOString(),
-      createdBy: "admin", // In a real app, this would be the actual admin ID
+      createdBy: "admin",
     };
 
-    // Save code
     localStorage.setItem("dailyCode", JSON.stringify(codeData));
     setDailyCode(codeData);
 
-    // Add to audit log
     const logEntry: CodeAuditLog = {
       code: formattedCode,
       action: newCode ? "updated" : "generated",
       timestamp: now.toISOString(),
-      adminId: "admin", // In a real app, this would be the actual admin ID
+      adminId: "admin",
     };
 
-    const updatedLog = [logEntry, ...auditLog].slice(0, 100); // Keep last 100 entries
+    const updatedLog = [logEntry, ...auditLog].slice(0, 100);
     localStorage.setItem("codeAuditLog", JSON.stringify(updatedLog));
     setAuditLog(updatedLog);
 
@@ -351,14 +468,114 @@ export default function AdminDashboard() {
     toast.success("Daily code updated successfully");
   };
 
+  const handleVolunteerSignOut = (sessionIndex: number) => {
+    const sessionToSignOut = activeVolunteers[sessionIndex];
+    if (!sessionToSignOut) return;
+
+    const checkOutTime = new Date();
+    const checkInTime = new Date(sessionToSignOut.checkInTime);
+    const durationMs = checkOutTime.getTime() - checkInTime.getTime();
+    const hoursWorked = (durationMs / (1000 * 60 * 60)).toFixed(2);
+
+    const completedSession: VolunteerSession = {
+      ...sessionToSignOut,
+      checkOutTime: checkOutTime.toISOString(),
+      hoursWorked: hoursWorked,
+    };
+
+    const updatedActiveVolunteers = activeVolunteers.filter(
+      (_, index) => index !== sessionIndex
+    );
+    const updatedCompletedSessions = [...completedSessions, completedSession];
+
+    setActiveVolunteers(updatedActiveVolunteers);
+    setCompletedSessions(updatedCompletedSessions);
+
+    localStorage.setItem(
+      "activeVolunteers",
+      JSON.stringify(updatedActiveVolunteers)
+    );
+    localStorage.setItem(
+      "completedSessions",
+      JSON.stringify(updatedCompletedSessions)
+    );
+
+    toast.success(
+      `${
+        sessionToSignOut.volunteerInfo?.firstName || "Volunteer"
+      } signed out successfully.`
+    );
+  };
+
+  const handleMusicianSignOut = (sessionIndex: number) => {
+    const sessionToSignOut = activeMusicians[sessionIndex];
+    if (!sessionToSignOut) return;
+
+    const allSignIns: MusicianSession[] = JSON.parse(
+      localStorage.getItem("musicianSignIns") || "[]"
+    );
+
+    const updatedSignIns = allSignIns.map((session) => {
+      if (
+        session.musicianId === sessionToSignOut.musicianId &&
+        session.signInTime === sessionToSignOut.signInTime
+      ) {
+        return {
+          ...session,
+          checkOutTime: new Date().toISOString(),
+        };
+      }
+      return session;
+    });
+
+    localStorage.setItem("musicianSignIns", JSON.stringify(updatedSignIns));
+
+    const musicianInfo = registeredMusicians.find(
+      (m) => m.id === sessionToSignOut.musicianId
+    );
+    const musicianName = musicianInfo
+      ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+      : "Musician";
+
+    toast.success(`${musicianName} signed out successfully.`);
+
+    loadDashboardData();
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <Button onClick={exportData} className="bg-red-700 hover:bg-red-800">
-          <Download className="mr-2 h-4 w-4" />
-          Export Data
-        </Button>
+        <div className="flex space-x-2">
+          <Button
+            onClick={exportRegisteredVolunteers}
+            variant="outline"
+            size="sm"
+          >
+            <Users className="mr-1 h-3 w-3" /> Export Registered Volunteers
+          </Button>
+          <Button
+            onClick={exportCompletedVolunteerSessions}
+            variant="outline"
+            size="sm"
+          >
+            <Clock className="mr-1 h-3 w-3" /> Export Completed Sessions
+          </Button>
+          <Button
+            onClick={exportRegisteredMusicians}
+            variant="outline"
+            size="sm"
+          >
+            <Music className="mr-1 h-3 w-3" /> Export Registered Musicians
+          </Button>
+          <Button
+            onClick={exportCompletedMusicianSessions}
+            variant="outline"
+            size="sm"
+          >
+            <History className="mr-1 h-3 w-3" /> Export Musician Sessions
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-6">
@@ -558,24 +775,35 @@ export default function AdminDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Volunteer</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Program</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Check-in Time</TableHead>
                   <TableHead>Duration</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {activeVolunteers.map((volunteer, index) => (
-                  <TableRow key={index}>
+                  <TableRow
+                    key={`${volunteer.identifier}-${volunteer.checkInTime}`}
+                  >
                     <TableCell>
                       {volunteer.volunteerInfo
                         ? `${volunteer.volunteerInfo.firstName} ${volunteer.volunteerInfo.lastName}`
                         : volunteer.identifier}
                     </TableCell>
                     <TableCell>
+                      {volunteer.volunteerInfo
+                        ? getVolunteerType(volunteer.volunteerInfo.id)
+                        : "Unknown"}
+                    </TableCell>
+                    <TableCell>
                       {volunteer.program
                         .replace(/-/g, " ")
                         .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                     </TableCell>
+                    <TableCell>{volunteer.location || "N/A"}</TableCell>
                     <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
                     <TableCell>
                       {Math.round(
@@ -584,6 +812,17 @@ export default function AdminDashboard() {
                           60000
                       )}{" "}
                       min
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleVolunteerSignOut(index)}
+                        className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <LogOut className="mr-1 h-3 w-3" />
+                        Sign Out
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -602,40 +841,61 @@ export default function AdminDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Musician</TableHead>
-                  <TableHead>Instrument</TableHead>
+                  <TableHead>Instrument(s)</TableHead>
                   <TableHead>Activity</TableHead>
                   <TableHead>Check-in Time</TableHead>
                   <TableHead>Duration</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activeMusicians.map((musician, index) => {
+                {activeMusicians.map((musicianSession, index) => {
                   const musicianInfo = registeredMusicians.find(
-                    (m) => m.id === musician.musicianId
+                    (m) => m.id === musicianSession.musicianId
                   );
                   return (
-                    <TableRow key={index}>
+                    <TableRow
+                      key={`${musicianSession.musicianId}-${musicianSession.signInTime}`}
+                    >
                       <TableCell>
                         {musicianInfo
                           ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
                           : "Unknown"}
                       </TableCell>
                       <TableCell>
-                        {musicianInfo?.instrument || "Unknown"}
+                        {musicianInfo &&
+                        Array.isArray(musicianInfo.instruments) &&
+                        musicianInfo.instruments.length > 0
+                          ? musicianInfo.instruments.join(", ")
+                          : "-"}
                       </TableCell>
                       <TableCell>
-                        {musician.activity.replace(/\b\w/g, (l: string) =>
-                          l.toUpperCase()
+                        {musicianSession.activity.replace(
+                          /\b\w/g,
+                          (l: string) => l.toUpperCase()
                         )}
                       </TableCell>
-                      <TableCell>{formatTime(musician.signInTime)}</TableCell>
+                      <TableCell>
+                        {formatTime(musicianSession.signInTime)}
+                      </TableCell>
                       <TableCell>
                         {Math.round(
                           (new Date().getTime() -
-                            new Date(musician.signInTime).getTime()) /
+                            new Date(musicianSession.signInTime).getTime()) /
                             60000
                         )}{" "}
                         min
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleMusicianSignOut(index)}
+                          className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <LogOut className="mr-1 h-3 w-3" />
+                          Sign Out
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -655,7 +915,9 @@ export default function AdminDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Volunteer</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Program</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Hours</TableHead>
                   <TableHead>Rating</TableHead>
@@ -670,10 +932,16 @@ export default function AdminDashboard() {
                         : session.identifier}
                     </TableCell>
                     <TableCell>
+                      {session.volunteerInfo
+                        ? getVolunteerType(session.volunteerInfo.id)
+                        : "Unknown"}
+                    </TableCell>
+                    <TableCell>
                       {session.program
                         .replace(/-/g, " ")
                         .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                     </TableCell>
+                    <TableCell>{session.location || "N/A"}</TableCell>
                     <TableCell>{formatDate(session.checkInTime)}</TableCell>
                     <TableCell>{session.hoursWorked}</TableCell>
                     <TableCell>
@@ -718,7 +986,11 @@ export default function AdminDashboard() {
                           : "Unknown"}
                       </TableCell>
                       <TableCell>
-                        {musicianInfo?.instrument || "Unknown"}
+                        {musicianInfo &&
+                        Array.isArray(musicianInfo.instruments) &&
+                        musicianInfo.instruments.length > 0
+                          ? musicianInfo.instruments.join(", ")
+                          : "-"}
                       </TableCell>
                       <TableCell>
                         {session.activity.replace(/\b\w/g, (l: string) =>
@@ -765,6 +1037,7 @@ export default function AdminDashboard() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Interests</TableHead>
                   <TableHead>Registration Date</TableHead>
                 </TableRow>
@@ -778,6 +1051,11 @@ export default function AdminDashboard() {
                     <TableCell>
                       <div>{volunteer.email}</div>
                       <div>{volunteer.phone}</div>
+                    </TableCell>
+                    <TableCell>
+                      {volunteer.volunteerType === "communityService"
+                        ? "Community Service"
+                        : "Regular"}
                     </TableCell>
                     <TableCell>
                       {volunteer.interests && volunteer.interests.length > 0
@@ -820,7 +1098,7 @@ export default function AdminDashboard() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Instrument</TableHead>
+                  <TableHead>Instrument(s)</TableHead>
                   <TableHead>Registration Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -834,7 +1112,12 @@ export default function AdminDashboard() {
                       <div>{musician.email}</div>
                       <div>{musician.phone}</div>
                     </TableCell>
-                    <TableCell>{musician.instrument}</TableCell>
+                    <TableCell>
+                      {Array.isArray(musician.instruments) &&
+                      musician.instruments.length > 0
+                        ? musician.instruments.join(", ")
+                        : "-"}
+                    </TableCell>
                     <TableCell>
                       {formatDate(musician.registrationDate)}
                     </TableCell>

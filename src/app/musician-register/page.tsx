@@ -17,13 +17,21 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const INSTRUMENTS = [
+  { id: "piano", label: "Piano" },
+  { id: "guitar", label: "Guitar" },
+  { id: "drums", label: "Drums" },
+  { id: "bass", label: "Bass" },
+  { id: "vocals", label: "Vocals" },
+  { id: "violin", label: "Violin" },
+  { id: "saxophone", label: "Saxophone" },
+  { id: "trumpet", label: "Trumpet" },
+  { id: "flute", label: "Flute" },
+  { id: "clarinet", label: "Clarinet" },
+  { id: "other", label: "Other" },
+];
 
 export default function MusicianRegistration() {
   const router = useRouter();
@@ -32,7 +40,7 @@ export default function MusicianRegistration() {
     lastName: "",
     email: "",
     phone: "",
-    instrument: "",
+    instruments: [] as string[],
     experience: "",
     availability: "",
   });
@@ -42,6 +50,15 @@ export default function MusicianRegistration() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const handleInstrumentChange = (instrumentId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      instruments: prev.instruments.includes(instrumentId)
+        ? prev.instruments.filter((id) => id !== instrumentId)
+        : [...prev.instruments, instrumentId],
     }));
   };
 
@@ -59,20 +76,45 @@ export default function MusicianRegistration() {
       return;
     }
 
-    if (!formData.instrument) {
-      toast.error("Please select your primary instrument");
+    if (formData.instruments.length === 0) {
+      toast.error("Please select at least one instrument you play");
       return;
     }
 
     // Store musician data in localStorage
     const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-    const musicianId = `mus-${Date.now()}`;
+
+    // Check if musician already exists
+    const existingMusician = musicians.find(
+      (m: any) =>
+        (m.email && m.email === formData.email) ||
+        (m.phone && m.phone === formData.phone) ||
+        (m.name &&
+          m.name.toLowerCase() ===
+            `${formData.firstName} ${formData.lastName}`.toLowerCase())
+    );
+
+    if (existingMusician) {
+      toast.error(
+        "A musician with this name, email, or phone number already exists"
+      );
+      return;
+    }
+
+    const musicianId = crypto.randomUUID();
 
     const newMusician = {
       id: musicianId,
-      ...formData,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      instruments: formData.instruments,
+      experience: formData.experience,
+      availability: formData.availability,
       registrationDate: new Date().toISOString(),
     };
+    console.log(newMusician);
 
     musicians.push(newMusician);
     localStorage.setItem("musicians", JSON.stringify(musicians));
@@ -161,30 +203,31 @@ export default function MusicianRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="instrument">
-                  Primary Instrument <span className="text-red-700">*</span>
+                <Label>
+                  Instruments Played <span className="text-red-700">*</span>
                 </Label>
-                <Select
-                  value={formData.instrument}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, instrument: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your instrument" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="piano">Piano</SelectItem>
-                    <SelectItem value="guitar">Guitar</SelectItem>
-                    <SelectItem value="drums">Drums</SelectItem>
-                    <SelectItem value="bass">Bass</SelectItem>
-                    <SelectItem value="vocals">Vocals</SelectItem>
-                    <SelectItem value="violin">Violin</SelectItem>
-                    <SelectItem value="saxophone">Saxophone</SelectItem>
-                    <SelectItem value="trumpet">Trumpet</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
+                  {INSTRUMENTS.map((instrument) => (
+                    <div
+                      key={instrument.id}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`musician-${instrument.id}`}
+                        checked={formData.instruments.includes(instrument.id)}
+                        onCheckedChange={() =>
+                          handleInstrumentChange(instrument.id)
+                        }
+                      />
+                      <Label
+                        htmlFor={`musician-${instrument.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {instrument.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-2">

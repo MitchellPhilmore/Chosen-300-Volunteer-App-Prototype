@@ -121,7 +121,7 @@ export default function SignIn() {
                 <p>Don't have an account?</p>
                 <div className="flex justify-center space-x-4 mt-2">
                   <Link
-                    href="/volunteer-type"
+                    href="/register"
                     className="text-red-700 hover:underline"
                   >
                     Register as Volunteer

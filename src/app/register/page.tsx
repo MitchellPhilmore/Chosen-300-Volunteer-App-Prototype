@@ -5,7 +5,7 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, User, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -22,14 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function Register() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const totalSteps = 4;
 
   // Form state
   const [formData, setFormData] = useState({
+    volunteerType: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -41,7 +44,6 @@ export default function Register() {
     emergencyName: "",
     emergencyPhone: "",
     skills: "",
-    volunteerType: "",
     serviceReason: "",
     serviceInstitution: "",
     availability: {
@@ -55,20 +57,6 @@ export default function Register() {
     interests: [] as string[],
   });
 
-  // Load volunteer type from localStorage if it exists
-  useEffect(() => {
-    const savedType = localStorage.getItem("volunteerType");
-    if (savedType) {
-      setFormData((prev) => ({
-        ...prev,
-        volunteerType: savedType,
-      }));
-    } else {
-      // If no type is saved, redirect to type selection
-      router.push("/volunteer-type");
-    }
-  }, [router]);
-
   // Handle form input changes
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -77,6 +65,13 @@ export default function Register() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const handleVolunteerTypeChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      volunteerType: value,
     }));
   };
 
@@ -112,6 +107,11 @@ export default function Register() {
   // Form validation for each step
   const validateStep = () => {
     if (step === 1) {
+      if (!formData.volunteerType) {
+        toast.error("Please select a volunteer type");
+        return false;
+      }
+    } else if (step === 2) {
       if (!formData.firstName || !formData.lastName) {
         toast.error("Please enter your full name");
         return false;
@@ -137,12 +137,12 @@ export default function Register() {
           return false;
         }
       }
-    } else if (step === 2) {
+    } else if (step === 3) {
       if (!formData.emergencyName || !formData.emergencyPhone) {
         toast.error("Please provide emergency contact information");
         return false;
       }
-    } else if (step === 3) {
+    } else if (step === 4) {
       // Validate availability
       const hasAvailability = Object.values(formData.availability).some(
         Boolean
@@ -188,7 +188,7 @@ export default function Register() {
       const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
 
       // Create a unique ID for the volunteer
-      const volunteerId = `vol-${Date.now()}`;
+      const volunteerId = crypto.randomUUID();
 
       const newVolunteer = {
         id: volunteerId,
@@ -211,6 +211,81 @@ export default function Register() {
   const renderStepContent = () => {
     switch (step) {
       case 1:
+        return (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+            <h3 className="text-lg font-medium">Select Volunteer Type</h3>
+            <RadioGroup
+              value={formData.volunteerType}
+              onValueChange={handleVolunteerTypeChange}
+              className="space-y-3"
+            >
+              <Label
+                htmlFor="regular"
+                className={`flex items-center space-x-3 rounded-md border p-4 cursor-pointer transition-colors ${
+                  formData.volunteerType === "regular"
+                    ? "border-red-700 bg-red-50"
+                    : "border-gray-200 hover:border-gray-400"
+                }`}
+              >
+                <RadioGroupItem
+                  value="regular"
+                  id="regular"
+                  className={
+                    formData.volunteerType === "regular"
+                      ? "border-red-700 text-red-700"
+                      : ""
+                  }
+                />
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  <span className="font-medium">Regular Volunteer</span>
+                </div>
+              </Label>
+              <Label
+                htmlFor="communityService"
+                className={`flex items-center space-x-3 rounded-md border p-4 cursor-pointer transition-colors ${
+                  formData.volunteerType === "communityService"
+                    ? "border-red-700 bg-red-50"
+                    : "border-gray-200 hover:border-gray-400"
+                }`}
+              >
+                <RadioGroupItem
+                  value="communityService"
+                  id="communityService"
+                  className={
+                    formData.volunteerType === "communityService"
+                      ? "border-red-700 text-red-700"
+                      : ""
+                  }
+                />
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5" />
+                  <span className="font-medium">
+                    Community Service Volunteer
+                  </span>
+                </div>
+              </Label>
+            </RadioGroup>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                onClick={nextStep}
+                className="w-full bg-red-700 hover:bg-red-800"
+                disabled={!formData.volunteerType}
+              >
+                Continue to Personal Info
+              </Button>
+            </motion.div>
+          </motion.div>
+        );
+
+      case 2:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -354,19 +429,33 @@ export default function Register() {
               </div>
             </div>
 
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <div className="flex space-x-4">
               <Button
                 type="button"
-                onClick={nextStep}
-                className="w-full bg-red-700 hover:bg-red-800"
+                variant="outline"
+                onClick={prevStep}
+                className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Continue to Emergency Contact
+                Back
               </Button>
-            </motion.div>
+              <motion.div
+                className="w-1/2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  className="w-full bg-red-700 hover:bg-red-800"
+                >
+                  Continue to Emergency Contact
+                </Button>
+              </motion.div>
+            </div>
           </motion.div>
         );
 
-      case 2:
+      case 3:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -412,7 +501,7 @@ export default function Register() {
                 type="button"
                 variant="outline"
                 onClick={prevStep}
-                className="w-1/2 border-red-700 text-red-700 hover:bg-red-50"
+                className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
                 Back
               </Button>
@@ -434,7 +523,7 @@ export default function Register() {
           </motion.div>
         );
 
-      case 3:
+      case 4:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -583,7 +672,7 @@ export default function Register() {
                 type="button"
                 variant="outline"
                 onClick={prevStep}
-                className="w-1/2 border-red-700 text-red-700 hover:bg-red-50"
+                className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
                 Back
               </Button>
@@ -643,17 +732,20 @@ export default function Register() {
             <div className="w-full bg-gray-200 h-2 rounded-full mt-4">
               <div
                 className="bg-red-700 h-2 rounded-full transition-all duration-300 ease-in-out"
-                style={{ width: `${(step / 3) * 100}%` }}
+                style={{ width: `${(step / totalSteps) * 100}%` }}
               ></div>
             </div>
-            <div className="flex justify-between text-xs text-gray-500 px-1">
+            <div className="flex justify-between text-xs text-gray-500 px-1 mt-1">
               <span className={step >= 1 ? "text-red-700 font-medium" : ""}>
-                Personal Info
+                Type
               </span>
               <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
-                Emergency Contact
+                Personal Info
               </span>
               <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
+                Emergency Contact
+              </span>
+              <span className={step >= 4 ? "text-red-700 font-medium" : ""}>
                 Preferences
               </span>
             </div>

@@ -17,6 +17,21 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const INSTRUMENTS = [
+  { id: "piano", label: "Piano" },
+  { id: "guitar", label: "Guitar" },
+  { id: "drums", label: "Drums" },
+  { id: "bass", label: "Bass" },
+  { id: "vocals", label: "Vocals" },
+  { id: "violin", label: "Violin" },
+  { id: "saxophone", label: "Saxophone" },
+  { id: "trumpet", label: "Trumpet" },
+  { id: "flute", label: "Flute" },
+  { id: "clarinet", label: "Clarinet" },
+  { id: "other", label: "Other" },
+];
 
 export default function VolunteerRegistration() {
   const router = useRouter();
@@ -25,6 +40,7 @@ export default function VolunteerRegistration() {
     lastName: "",
     email: "",
     phone: "",
+    instruments: [] as string[],
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,6 +48,15 @@ export default function VolunteerRegistration() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const handleInstrumentChange = (instrumentId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      instruments: prev.instruments.includes(instrumentId)
+        ? prev.instruments.filter((id) => id !== instrumentId)
+        : [...prev.instruments, instrumentId],
     }));
   };
 
@@ -50,27 +75,35 @@ export default function VolunteerRegistration() {
       return;
     }
 
+    // Create new volunteer (include instruments)
+    const newVolunteer = {
+      id: crypto.randomUUID(),
+      name: `${formData.firstName} ${formData.lastName}`,
+      email: formData.email,
+      phone: formData.phone,
+      instruments: formData.instruments,
+      registrationDate: new Date().toISOString(),
+    };
+
     // Get existing volunteers
     const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
 
-    // Check if volunteer already exists
+    // Check if volunteer already exists (using combined name now)
     const existingVolunteer = volunteers.find(
       (v: any) =>
         (v.email && v.email === formData.email) ||
-        (v.phone && v.phone === formData.phone)
+        (v.phone && v.phone === formData.phone) ||
+        (v.name &&
+          v.name.toLowerCase() ===
+            `${formData.firstName} ${formData.lastName}`.toLowerCase())
     );
 
     if (existingVolunteer) {
-      toast.error("A volunteer with this email or phone number already exists");
+      toast.error(
+        "A volunteer with this name, email, or phone number already exists"
+      );
       return;
     }
-
-    // Create new volunteer
-    const newVolunteer = {
-      id: crypto.randomUUID(),
-      ...formData,
-      registrationDate: new Date().toISOString(),
-    };
 
     // Save to localStorage
     localStorage.setItem(
@@ -150,6 +183,32 @@ export default function VolunteerRegistration() {
                   value={formData.phone}
                   onChange={handleChange}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Instruments Played (Optional)</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  {INSTRUMENTS.map((instrument) => (
+                    <div
+                      key={instrument.id}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`volunteer-${instrument.id}`}
+                        checked={formData.instruments.includes(instrument.id)}
+                        onCheckedChange={() =>
+                          handleInstrumentChange(instrument.id)
+                        }
+                      />
+                      <Label
+                        htmlFor={`volunteer-${instrument.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {instrument.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <motion.div

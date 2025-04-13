@@ -1,48 +1,31 @@
 "use client";
 
 import type React from "react";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, Lock } from "lucide-react";
+import { Menu, Lock, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const loggedIn = localStorage.getItem("isAdminLoggedIn") === "true";
+    setIsAdminLoggedIn(loggedIn);
+  }, []);
 
-    // In a real app, this would validate against a database
-    if (username === "admin" && password === "password") {
-      toast.success("Login successful", {
-        description: "Welcome to the admin dashboard",
-      });
-      router.push("/admin");
-    } else {
-      toast.error("Login failed", {
-        description: "Invalid username or password",
-      });
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("isAdminLoggedIn");
+    setIsAdminLoggedIn(false);
+    toast.info("Logged out successfully");
+    router.push("/");
   };
 
   return (
@@ -59,8 +42,17 @@ export default function Navbar() {
         </Link>
 
         <div className="hidden md:flex md:items-center md:space-x-4">
-          <Dialog>
-            <DialogTrigger asChild>
+          {isAdminLoggedIn ? (
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Admin Logout
+            </Button>
+          ) : (
+            <Link href="/admin/login" passHref>
               <Button
                 variant="outline"
                 className="border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800"
@@ -68,44 +60,8 @@ export default function Navbar() {
                 <Lock className="mr-2 h-4 w-4" />
                 Admin Login
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <form onSubmit={handleLogin}>
-                <DialogHeader>
-                  <DialogTitle>Admin Login</DialogTitle>
-                  <DialogDescription>
-                    Enter your credentials to access the admin dashboard.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      autoComplete="username"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="bg-red-700 hover:bg-red-800">
-                    Login
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+            </Link>
+          )}
         </div>
 
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -116,58 +72,31 @@ export default function Navbar() {
           </SheetTrigger>
           <SheetContent side="right" className="w-[240px] sm:w-[300px]">
             <div className="flex flex-col space-y-4 mt-8">
-              <Dialog>
-                <DialogTrigger asChild>
+              {isAdminLoggedIn ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleLogout();
+                    setIsOpen(false);
+                  }}
+                  className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Admin Logout
+                </Button>
+              ) : (
+                <Link href="/admin/login" passHref>
                   <Button
                     variant="outline"
-                    className="border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800"
+                    className="border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800 w-full justify-start"
                     onClick={() => setIsOpen(false)}
                   >
                     <Lock className="mr-2 h-4 w-4" />
                     Admin Login
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <form onSubmit={handleLogin}>
-                    <DialogHeader>
-                      <DialogTitle>Admin Login</DialogTitle>
-                      <DialogDescription>
-                        Enter your credentials to access the admin dashboard.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="username-mobile">Username</Label>
-                        <Input
-                          id="username-mobile"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          autoComplete="username"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="password-mobile">Password</Label>
-                        <Input
-                          id="password-mobile"
-                          type="password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          autoComplete="current-password"
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        type="submit"
-                        className="bg-red-700 hover:bg-red-800"
-                      >
-                        Login
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-              <Link href="/" onClick={() => setIsOpen(false)}>
+                </Link>
+              )}
+              <Link href="/" onClick={() => setIsOpen(false)} passHref>
                 <Button variant="ghost" className="w-full justify-start">
                   Home
                 </Button>
