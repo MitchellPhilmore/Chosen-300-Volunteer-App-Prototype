@@ -543,14 +543,15 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <div className="flex space-x-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
           <Button
             onClick={exportRegisteredVolunteers}
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto justify-center"
           >
             <Users className="mr-1 h-3 w-3" /> Export Registered Volunteers
           </Button>
@@ -558,6 +559,7 @@ export default function AdminDashboard() {
             onClick={exportCompletedVolunteerSessions}
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto justify-center"
           >
             <Clock className="mr-1 h-3 w-3" /> Export Completed Sessions
           </Button>
@@ -565,6 +567,7 @@ export default function AdminDashboard() {
             onClick={exportRegisteredMusicians}
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto justify-center"
           >
             <Music className="mr-1 h-3 w-3" /> Export Registered Musicians
           </Button>
@@ -572,6 +575,7 @@ export default function AdminDashboard() {
             onClick={exportCompletedMusicianSessions}
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto justify-center"
           >
             <History className="mr-1 h-3 w-3" /> Export Musician Sessions
           </Button>
@@ -730,7 +734,7 @@ export default function AdminDashboard() {
       </Card>
 
       <Tabs defaultValue="active">
-        <TabsList className="bg-gray-100">
+        <TabsList className="bg-gray-100 h-auto flex flex-wrap justify-start">
           <TabsTrigger
             value="active"
             className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
@@ -769,119 +773,47 @@ export default function AdminDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active" className="border rounded-md p-4">
+        <TabsContent value="active" className="border rounded-md p-0 md:p-4">
           {activeVolunteers.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Volunteer</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Check-in Time</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeVolunteers.map((volunteer, index) => (
-                  <TableRow
-                    key={`${volunteer.identifier}-${volunteer.checkInTime}`}
-                  >
-                    <TableCell>
-                      {volunteer.volunteerInfo
-                        ? `${volunteer.volunteerInfo.firstName} ${volunteer.volunteerInfo.lastName}`
-                        : volunteer.identifier}
-                    </TableCell>
-                    <TableCell>
-                      {volunteer.volunteerInfo
-                        ? getVolunteerType(volunteer.volunteerInfo.id)
-                        : "Unknown"}
-                    </TableCell>
-                    <TableCell>
-                      {volunteer.program
-                        .replace(/-/g, " ")
-                        .replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                    </TableCell>
-                    <TableCell>{volunteer.location || "N/A"}</TableCell>
-                    <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
-                    <TableCell>
-                      {Math.round(
-                        (new Date().getTime() -
-                          new Date(volunteer.checkInTime).getTime()) /
-                          60000
-                      )}{" "}
-                      min
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleVolunteerSignOut(index)}
-                        className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <LogOut className="mr-1 h-3 w-3" />
-                        Sign Out
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Volunteer</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Check-in Time</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No active volunteers at this time
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="active-musicians" className="border rounded-md p-4">
-          {activeMusicians.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Musician</TableHead>
-                  <TableHead>Instrument(s)</TableHead>
-                  <TableHead>Activity</TableHead>
-                  <TableHead>Check-in Time</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeMusicians.map((musicianSession, index) => {
-                  const musicianInfo = registeredMusicians.find(
-                    (m) => m.id === musicianSession.musicianId
-                  );
-                  return (
+                </TableHeader>
+                <TableBody>
+                  {activeVolunteers.map((volunteer, index) => (
                     <TableRow
-                      key={`${musicianSession.musicianId}-${musicianSession.signInTime}`}
+                      key={`${volunteer.identifier}-${volunteer.checkInTime}`}
                     >
                       <TableCell>
-                        {musicianInfo
-                          ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+                        {volunteer.volunteerInfo
+                          ? `${volunteer.volunteerInfo.firstName} ${volunteer.volunteerInfo.lastName}`
+                          : volunteer.identifier}
+                      </TableCell>
+                      <TableCell>
+                        {volunteer.volunteerInfo
+                          ? getVolunteerType(volunteer.volunteerInfo.id)
                           : "Unknown"}
                       </TableCell>
                       <TableCell>
-                        {musicianInfo &&
-                        Array.isArray(musicianInfo.instruments) &&
-                        musicianInfo.instruments.length > 0
-                          ? musicianInfo.instruments.join(", ")
-                          : "-"}
+                        {volunteer.program
+                          .replace(/-/g, " ")
+                          .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </TableCell>
-                      <TableCell>
-                        {musicianSession.activity.replace(
-                          /\b\w/g,
-                          (l: string) => l.toUpperCase()
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {formatTime(musicianSession.signInTime)}
-                      </TableCell>
+                      <TableCell>{volunteer.location || "N/A"}</TableCell>
+                      <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
                       <TableCell>
                         {Math.round(
                           (new Date().getTime() -
-                            new Date(musicianSession.signInTime).getTime()) /
+                            new Date(volunteer.checkInTime).getTime()) /
                             60000
                         )}{" "}
                         min
@@ -890,7 +822,7 @@ export default function AdminDashboard() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleMusicianSignOut(index)}
+                          onClick={() => handleVolunteerSignOut(index)}
                           className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
                         >
                           <LogOut className="mr-1 h-3 w-3" />
@@ -898,61 +830,142 @@ export default function AdminDashboard() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground p-4">
+              No active volunteers at this time
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="active-musicians"
+          className="border rounded-md p-0 md:p-4"
+        >
+          {activeMusicians.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Musician</TableHead>
+                    <TableHead>Instrument(s)</TableHead>
+                    <TableHead>Activity</TableHead>
+                    <TableHead>Check-in Time</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeMusicians.map((musicianSession, index) => {
+                    const musicianInfo = registeredMusicians.find(
+                      (m) => m.id === musicianSession.musicianId
+                    );
+                    return (
+                      <TableRow
+                        key={`${musicianSession.musicianId}-${musicianSession.signInTime}`}
+                      >
+                        <TableCell>
+                          {musicianInfo
+                            ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+                            : "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                          {musicianInfo &&
+                          Array.isArray(musicianInfo.instruments) &&
+                          musicianInfo.instruments.length > 0
+                            ? musicianInfo.instruments.join(", ")
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {musicianSession.activity.replace(
+                            /\b\w/g,
+                            (l: string) => l.toUpperCase()
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatTime(musicianSession.signInTime)}
+                        </TableCell>
+                        <TableCell>
+                          {Math.round(
+                            (new Date().getTime() -
+                              new Date(musicianSession.signInTime).getTime()) /
+                              60000
+                          )}{" "}
+                          min
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleMusicianSignOut(index)}
+                            className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <LogOut className="mr-1 h-3 w-3" />
+                            Sign Out
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground p-4">
               No active musicians at this time
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="completed" className="border rounded-md p-4">
+        <TabsContent value="completed" className="border rounded-md p-0 md:p-4">
           {completedSessions.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Volunteer</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Hours</TableHead>
-                  <TableHead>Rating</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {completedSessions.map((session, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      {session.volunteerInfo
-                        ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
-                        : session.identifier}
-                    </TableCell>
-                    <TableCell>
-                      {session.volunteerInfo
-                        ? getVolunteerType(session.volunteerInfo.id)
-                        : "Unknown"}
-                    </TableCell>
-                    <TableCell>
-                      {session.program
-                        .replace(/-/g, " ")
-                        .replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                    </TableCell>
-                    <TableCell>{session.location || "N/A"}</TableCell>
-                    <TableCell>{formatDate(session.checkInTime)}</TableCell>
-                    <TableCell>{session.hoursWorked}</TableCell>
-                    <TableCell>
-                      {session.rating ? `${session.rating}/5` : "N/A"}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Volunteer</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Rating</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {completedSessions.map((session, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {session.volunteerInfo
+                          ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
+                          : session.identifier}
+                      </TableCell>
+                      <TableCell>
+                        {session.volunteerInfo
+                          ? getVolunteerType(session.volunteerInfo.id)
+                          : "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        {session.program
+                          .replace(/-/g, " ")
+                          .replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </TableCell>
+                      <TableCell>{session.location || "N/A"}</TableCell>
+                      <TableCell>{formatDate(session.checkInTime)}</TableCell>
+                      <TableCell>{session.hoursWorked}</TableCell>
+                      <TableCell>
+                        {session.rating ? `${session.rating}/5` : "N/A"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground p-4">
               No completed sessions yet
             </div>
           )}
@@ -960,67 +973,72 @@ export default function AdminDashboard() {
 
         <TabsContent
           value="completed-musicians"
-          className="border rounded-md p-4"
+          className="border rounded-md p-0 md:p-4"
         >
           {completedMusicianSessions.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Musician</TableHead>
-                  <TableHead>Instrument</TableHead>
-                  <TableHead>Activity</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Duration</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {completedMusicianSessions.map((session, index) => {
-                  const musicianInfo = registeredMusicians.find(
-                    (m) => m.id === session.musicianId
-                  );
-                  return (
-                    <TableRow key={index}>
-                      <TableCell>
-                        {musicianInfo
-                          ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
-                          : "Unknown"}
-                      </TableCell>
-                      <TableCell>
-                        {musicianInfo &&
-                        Array.isArray(musicianInfo.instruments) &&
-                        musicianInfo.instruments.length > 0
-                          ? musicianInfo.instruments.join(", ")
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {session.activity.replace(/\b\w/g, (l: string) =>
-                          l.toUpperCase()
-                        )}
-                      </TableCell>
-                      <TableCell>{formatDate(session.signInTime)}</TableCell>
-                      <TableCell>
-                        {Math.round(
-                          (new Date(session.signInTime).getTime() -
-                            new Date(
-                              session.checkOutTime || new Date()
-                            ).getTime()) /
-                            60000
-                        )}{" "}
-                        min
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Musician</TableHead>
+                    <TableHead>Instrument</TableHead>
+                    <TableHead>Activity</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Duration</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {completedMusicianSessions.map((session, index) => {
+                    const musicianInfo = registeredMusicians.find(
+                      (m) => m.id === session.musicianId
+                    );
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>
+                          {musicianInfo
+                            ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
+                            : "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                          {musicianInfo &&
+                          Array.isArray(musicianInfo.instruments) &&
+                          musicianInfo.instruments.length > 0
+                            ? musicianInfo.instruments.join(", ")
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {session.activity.replace(/\b\w/g, (l: string) =>
+                            l.toUpperCase()
+                          )}
+                        </TableCell>
+                        <TableCell>{formatDate(session.signInTime)}</TableCell>
+                        <TableCell>
+                          {Math.round(
+                            (new Date(session.signInTime).getTime() -
+                              new Date(
+                                session.checkOutTime || new Date()
+                              ).getTime()) /
+                              60000
+                          )}{" "}
+                          min
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground p-4">
               No completed musician sessions yet
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="registered" className="border rounded-md p-4">
+        <TabsContent
+          value="registered"
+          className="border rounded-md p-0 md:p-4"
+        >
           <div className="mb-4 flex items-center">
             <Search className="mr-2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -1032,45 +1050,47 @@ export default function AdminDashboard() {
           </div>
 
           {filteredVolunteers.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Interests</TableHead>
-                  <TableHead>Registration Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredVolunteers.map((volunteer, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      {volunteer.firstName} {volunteer.lastName}
-                    </TableCell>
-                    <TableCell>
-                      <div>{volunteer.email}</div>
-                      <div>{volunteer.phone}</div>
-                    </TableCell>
-                    <TableCell>
-                      {volunteer.volunteerType === "communityService"
-                        ? "Community Service"
-                        : "Regular"}
-                    </TableCell>
-                    <TableCell>
-                      {volunteer.interests && volunteer.interests.length > 0
-                        ? volunteer.interests.join(", ")
-                        : "None specified"}
-                    </TableCell>
-                    <TableCell>
-                      {formatDate(volunteer.registrationDate)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Interests</TableHead>
+                    <TableHead>Registration Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredVolunteers.map((volunteer, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {volunteer.firstName} {volunteer.lastName}
+                      </TableCell>
+                      <TableCell>
+                        <div>{volunteer.email}</div>
+                        <div>{volunteer.phone}</div>
+                      </TableCell>
+                      <TableCell>
+                        {volunteer.volunteerType === "communityService"
+                          ? "Community Service"
+                          : "Regular"}
+                      </TableCell>
+                      <TableCell>
+                        {volunteer.interests && volunteer.interests.length > 0
+                          ? volunteer.interests.join(", ")
+                          : "None specified"}
+                      </TableCell>
+                      <TableCell>
+                        {formatDate(volunteer.registrationDate)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground p-4">
               {searchTerm
                 ? "No volunteers match your search"
                 : "No registered volunteers yet"}
@@ -1080,7 +1100,7 @@ export default function AdminDashboard() {
 
         <TabsContent
           value="registered-musicians"
-          className="border rounded-md p-4"
+          className="border rounded-md p-0 md:p-4"
         >
           <div className="mb-4 flex items-center">
             <Search className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -1093,40 +1113,42 @@ export default function AdminDashboard() {
           </div>
 
           {registeredMusicians.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Instrument(s)</TableHead>
-                  <TableHead>Registration Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {registeredMusicians.map((musician, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      {musician.firstName} {musician.lastName}
-                    </TableCell>
-                    <TableCell>
-                      <div>{musician.email}</div>
-                      <div>{musician.phone}</div>
-                    </TableCell>
-                    <TableCell>
-                      {Array.isArray(musician.instruments) &&
-                      musician.instruments.length > 0
-                        ? musician.instruments.join(", ")
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {formatDate(musician.registrationDate)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Instrument(s)</TableHead>
+                    <TableHead>Registration Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {registeredMusicians.map((musician, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        {musician.firstName} {musician.lastName}
+                      </TableCell>
+                      <TableCell>
+                        <div>{musician.email}</div>
+                        <div>{musician.phone}</div>
+                      </TableCell>
+                      <TableCell>
+                        {Array.isArray(musician.instruments) &&
+                        musician.instruments.length > 0
+                          ? musician.instruments.join(", ")
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {formatDate(musician.registrationDate)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground p-4">
               No registered musicians yet
             </div>
           )}
