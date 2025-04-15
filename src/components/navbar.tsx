@@ -28,9 +28,9 @@ export default function Navbar() {
     router.push("/");
   };
 
-  return (
+  return ( 
     <header className="sticky top-0 z-50 w-full border-b bg-white">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex h-16 items-center justify-end">
        
 
         <div className="hidden md:flex md:items-center md:space-x-4">
