@@ -31,15 +31,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center space-x-2">
-          <Image
-            src="/chosen-01.jpg"
-            alt="Chosen 300 Logo"
-            width={150}
-            height={40}
-            className="h-auto"
-          />
-        </Link>
+       
 
         <div className="hidden md:flex md:items-center md:space-x-4">
           {isAdminLoggedIn ? (

@@ -46,7 +46,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="container mx-auto flex  items-center justify-center py-12 px-4">
+    <div className="container w-full h-full mx-auto flex  items-center justify-center py-12 px-4">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

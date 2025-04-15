@@ -16,7 +16,7 @@ export default function SplashScreen() {
     // Simulate loading time
     const timer = setTimeout(() => {
       setIsLoaded(true);
-    }, 1000);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, []);
