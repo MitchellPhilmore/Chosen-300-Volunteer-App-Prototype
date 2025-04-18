@@ -183,7 +183,7 @@ export default function AdminDashboard() {
         sum + Number.parseFloat(session.hoursWorked || "0"),
       0
     );
-    const ratingsCount = completed.filter(
+    const ratingsCount = completed?.filter(
       (s: VolunteerSession) => s.rating && s.rating > 0
     ).length;
     const ratingsSum = completed.reduce(
@@ -423,10 +423,10 @@ export default function AdminDashboard() {
   const filteredVolunteers = registeredVolunteers.filter((volunteer) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      volunteer.firstName.toLowerCase().includes(searchLower) ||
-      volunteer.lastName.toLowerCase().includes(searchLower) ||
+      volunteer.firstName?.toLowerCase().includes(searchLower) ||
+      volunteer.lastName?.toLowerCase().includes(searchLower) ||
       volunteer.email?.toLowerCase().includes(searchLower) ||
-      volunteer.phone.toLowerCase().includes(searchLower)
+      volunteer.phone?.toLowerCase().includes(searchLower)
     );
   });
 

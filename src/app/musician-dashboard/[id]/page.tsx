@@ -10,6 +10,10 @@ import {
   Calendar,
   CheckCircle2,
   History,
+  LogOut,
+  ChevronRight,
+  UserPlus,
+  Heart,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -30,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { LogOut } from "lucide-react";
 
 // Interface for Musician (align with registration/admin)
 interface Musician {
@@ -69,6 +72,8 @@ export default function MusicianDashboard({
   );
   const [musicianHistory, setMusicianHistory] = useState<MusicianSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAlsoVolunteer, setIsAlsoVolunteer] = useState(false);
+  const [volunteerId, setVolunteerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -84,6 +89,19 @@ export default function MusicianDashboard({
     }
 
     setMusician(foundMusician);
+
+    // Check if musician is also registered as a volunteer
+    const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
+    const matchingVolunteer = volunteers.find(
+      (v: any) =>
+        (v.email && foundMusician.email && v.email === foundMusician.email) ||
+        (v.phone && foundMusician.phone && v.phone === foundMusician.phone)
+    );
+
+    if (matchingVolunteer) {
+      setIsAlsoVolunteer(true);
+      setVolunteerId(matchingVolunteer.id);
+    }
 
     // Load session data
     const allSignIns: MusicianSession[] = JSON.parse(
@@ -202,6 +220,57 @@ export default function MusicianDashboard({
     }
     return `${minutes}m`;
   }, [musicianHistory]);
+
+  const handleRegisterAsVolunteer = (isCommunityService: boolean) => {
+    if (!musician) return;
+
+    // Basic check to prevent accidental double registration from this page
+    const existingVolunteers = JSON.parse(
+      localStorage.getItem("volunteers") || "[]"
+    );
+    const alreadyExists = existingVolunteers.some(
+      (v: any) =>
+        (v.email && musician.email && v.email === musician.email) ||
+        (v.phone && musician.phone && v.phone === musician.phone)
+    );
+    if (alreadyExists) {
+      toast.info("You seem to already be registered as a volunteer.");
+      // Optionally: Find the existing ID and redirect?
+      const matchingVolunteer = existingVolunteers.find(
+        (v: any) =>
+          (v.email && musician.email && v.email === musician.email) ||
+          (v.phone && musician.phone && v.phone === musician.phone)
+      );
+      if (matchingVolunteer) {
+        setIsAlsoVolunteer(true);
+        setVolunteerId(matchingVolunteer.id);
+      }
+      return;
+    }
+
+    // Redirect to the appropriate registration page
+    // Pass musician details as query params to pre-fill the form
+    const queryParams = new URLSearchParams({
+      firstName: musician.firstName,
+      lastName: musician.lastName,
+      email: musician.email || "",
+      phone: musician.phone || "",
+      source: "musicianDashboard",
+    });
+
+    if (isCommunityService) {
+      queryParams.set("type", "communityService");
+      router.push(`/register?${queryParams.toString()}`);
+    } else {
+      // For regular volunteer registration, just redirect
+      router.push(`/register?${queryParams.toString()}`);
+    }
+
+    // Note: We no longer create the volunteer record here.
+    // Registration completion happens on the /register page.
+    // We also don't immediately set isAlsoVolunteer = true here,
+    // as the registration isn't complete yet.
+  };
 
   if (loading || !musician) {
     return <div>Loading...</div>;
@@ -392,6 +461,69 @@ export default function MusicianDashboard({
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+          <div className="space-y-6">
+            {/* Volunteer Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">
+                  Volunteer Opportunities
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAlsoVolunteer ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      You are also registered as a volunteer.
+                    </p>
+                    <Link href={`/volunteer-dashboard/${volunteerId}`}>
+                      <Button className="w-full bg-red-700 hover:bg-red-800">
+                        <UserPlus className="mr-2 h-5 w-5" />
+                        Go to Volunteer Dashboard
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      Contribute your time through volunteering. Choose an
+                      option below to register.
+                    </p>
+                    <motion.div
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <Button
+                        onClick={() => handleRegisterAsVolunteer(false)} // Regular volunteer
+                        variant="outline"
+                        className="w-full border-red-700 text-red-700 hover:bg-red-50"
+                      >
+                        <UserPlus className="mr-2 h-5 w-5" />
+                        Register as Regular Volunteer
+                      </Button>
+                    </motion.div>
+                    <motion.div
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <Button
+                        onClick={() => handleRegisterAsVolunteer(true)} // Community Service
+                        variant="outline"
+                        className="w-full border-red-700 text-red-700 hover:bg-red-50"
+                      >
+                        <Heart className="mr-2 h-5 w-5" />
+                        Register for Community Service
+                      </Button>
+                    </motion.div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">{/* Existing code */}</div>
+        </div>
       </motion.div>
     </div>
   );

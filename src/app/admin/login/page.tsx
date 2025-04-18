@@ -46,17 +46,18 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="container w-full h-full mx-auto flex  items-center justify-center py-12 px-4">
+    <div className="container w-full h-full mx-auto flex items-center justify-center py-12 px-4">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="w-full max-w-2xl"
       >
-        <Card className="w-full max-w-md shadow-xl border-gray-200">
-          <CardHeader>
+        <Card className="w-full shadow-xl border-gray-200">
+          <CardHeader className="space-y-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                <Lock className="h-5 w-5" /> Admin Login
+              <CardTitle className="flex items-center gap-2 text-2xl font-bold">
+                <Lock className="h-6 w-6" /> Admin Login
               </CardTitle>
               <Link href="/">
                 <Button variant="ghost" size="sm">
@@ -64,14 +65,17 @@ export default function AdminLoginPage() {
                 </Button>
               </Link>
             </div>
-            <CardDescription>
+            <CardDescription className="text-base">
               Enter your credentials to access the administrative dashboard.
             </CardDescription>
           </CardHeader>
+
           <form onSubmit={handleLogin}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="username" className="text-base">
+                  Username
+                </Label>
                 <Input
                   id="username"
                   value={username}
@@ -79,10 +83,13 @@ export default function AdminLoginPage() {
                   autoComplete="username"
                   required
                   placeholder="admin"
+                  className="h-12 text-base"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-3">
+                <Label htmlFor="password" className="text-base">
+                  Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
@@ -91,13 +98,14 @@ export default function AdminLoginPage() {
                   autoComplete="current-password"
                   required
                   placeholder="••••••••"
+                  className="h-12 text-base"
                 />
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="pt-6">
               <Button
                 type="submit"
-                className="w-full bg-red-700 hover:bg-red-800"
+                className="w-full h-12 text-base bg-red-700 hover:bg-red-800"
               >
                 Login
               </Button>

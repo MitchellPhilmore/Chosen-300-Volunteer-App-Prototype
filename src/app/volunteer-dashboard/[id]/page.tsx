@@ -11,6 +11,7 @@ import {
   LogOut,
   Loader2,
   Star,
+  Briefcase,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -42,6 +43,9 @@ interface Volunteer {
   lastName: string;
   email?: string;
   phone: string;
+  volunteerType?: "regular" | "communityService";
+  serviceReason?: string;
+  serviceInstitution?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -66,6 +70,7 @@ interface VolunteerSession {
   adminCode: string;
   rating?: number;
   comments?: string;
+  isCommunityServiceSession?: boolean;
 }
 
 export default function VolunteerDashboard() {
@@ -79,6 +84,9 @@ export default function VolunteerDashboard() {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [isCsSession, setIsCsSession] = useState(false);
+  const [csReason, setCsReason] = useState("");
+  const [csInstitution, setCsInstitution] = useState("");
   const [volunteerHistory, setVolunteerHistory] = useState<VolunteerSession[]>(
     []
   );
@@ -152,6 +160,18 @@ export default function VolunteerDashboard() {
       return;
     }
 
+    // New Validation: If checking in for CS for the first time, require reason and institution
+    if (isCsSession && volunteer.volunteerType !== "communityService") {
+      if (!csReason) {
+        toast.error("Please enter the reason for your community service");
+        return;
+      }
+      if (!csInstitution) {
+        toast.error("Please enter the institution requiring your service");
+        return;
+      }
+    }
+
     // Validate admin code
     const savedCode = localStorage.getItem("dailyCode");
     if (!savedCode) {
@@ -187,19 +207,51 @@ export default function VolunteerDashboard() {
 
     setIsCheckingIn(true);
 
+    // Potentially update the main volunteer record first if upgrading to CS
+    let updatedVolunteerData = { ...volunteer }; // Start with current data
+    if (isCsSession && volunteer.volunteerType !== "communityService") {
+      try {
+        const allVolunteers = JSON.parse(
+          localStorage.getItem("volunteers") || "[]"
+        );
+        const updatedVolunteers = allVolunteers.map((v: Volunteer) => {
+          if (v.id === volunteer.id) {
+            updatedVolunteerData = {
+              ...v,
+              volunteerType: "communityService",
+              serviceReason: csReason,
+              serviceInstitution: csInstitution,
+            };
+            return updatedVolunteerData;
+          }
+          return v;
+        });
+        localStorage.setItem("volunteers", JSON.stringify(updatedVolunteers));
+        // Update state immediately
+        setVolunteer(updatedVolunteerData);
+        toast.info("Volunteer profile updated to Community Service.");
+      } catch (error) {
+        console.error("Error updating volunteer profile:", error);
+        toast.error("Could not update volunteer profile. Please try again.");
+        setIsCheckingIn(false);
+        return; // Stop check-in if profile update fails
+      }
+    }
+
     // Create check-in record
     setTimeout(() => {
       const checkInData: VolunteerSession = {
-        identifier: volunteer.email || volunteer.phone,
+        identifier: updatedVolunteerData.email || updatedVolunteerData.phone,
         program: selectedProgram,
         location: selectedLocation,
         checkInTime: new Date().toISOString(),
         volunteerInfo: {
-          id: volunteer.id,
-          firstName: volunteer.firstName,
-          lastName: volunteer.lastName,
+          id: updatedVolunteerData.id,
+          firstName: updatedVolunteerData.firstName,
+          lastName: updatedVolunteerData.lastName,
         },
-        adminCode: submittedCode, // Store the validated code
+        adminCode: submittedCode,
+        isCommunityServiceSession: isCsSession, // Always set based on checkbox now
       };
 
       // Store in localStorage
@@ -215,6 +267,11 @@ export default function VolunteerDashboard() {
       setActiveSession(checkInData);
       setIsCheckingIn(false);
       setAdminCode("");
+      setSelectedProgram("");
+      setSelectedLocation("");
+      setIsCsSession(false);
+      setCsReason(""); // Reset temporary CS fields
+      setCsInstitution(""); // Reset temporary CS fields
 
       toast.success("Check-in successful!", {
         description: `You've checked in to ${selectedProgram
@@ -223,7 +280,7 @@ export default function VolunteerDashboard() {
             l.toUpperCase()
           )} at ${new Date().toLocaleTimeString()}`,
       });
-    }, 1500);
+    }, 1500); // Keep timeout for simulating network request
   };
 
   const handleCheckOut = () => {
@@ -303,6 +360,25 @@ export default function VolunteerDashboard() {
       .toFixed(1);
   };
 
+  // Calculate Community Service Hours
+  const calculateCsHours = () => {
+    return volunteerHistory
+      .filter((session) => session.isCommunityServiceSession)
+      .reduce((total, session) => {
+        return total + Number.parseFloat(session.hoursWorked || "0");
+      }, 0)
+      .toFixed(1);
+  };
+
+  // Calculate Community Service Sessions Count
+  const csSessionsCount = volunteerHistory.filter(
+    (session) => session.isCommunityServiceSession
+  ).length;
+
+  // Determine if CS metrics should be shown
+  const showCsMetrics =
+    volunteer?.volunteerType === "communityService" || csSessionsCount > 0;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -328,7 +404,14 @@ export default function VolunteerDashboard() {
             <h1 className="text-2xl font-bold">
               Welcome, {volunteer.firstName}!
             </h1>
-            <p className="text-gray-600">Volunteer Dashboard</p>
+            <p className="text-gray-600">
+              Volunteer Dashboard
+              {volunteer.volunteerType === "communityService" && (
+                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <Briefcase className="mr-1 h-3 w-3" /> Community Service
+                </span>
+              )}
+            </p>
           </div>
 
           <div className="flex space-x-3">
@@ -344,7 +427,7 @@ export default function VolunteerDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
@@ -352,7 +435,9 @@ export default function VolunteerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{calculateTotalHours()}</div>
-              <p className="text-xs text-muted-foreground">Hours of service</p>
+              <p className="text-xs text-muted-foreground">
+                Total hours of service
+              </p>
             </CardContent>
           </Card>
 
@@ -374,7 +459,7 @@ export default function VolunteerDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Sessions Completed
+                Total Sessions
               </CardTitle>
               <Award className="h-4 w-4 text-red-700" />
             </CardHeader>
@@ -383,10 +468,42 @@ export default function VolunteerDashboard() {
                 {volunteerHistory.length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Volunteer sessions
+                Total volunteer sessions
               </p>
             </CardContent>
           </Card>
+
+          {showCsMetrics && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">CS Hours</CardTitle>
+                <Briefcase className="h-4 w-4 text-blue-700" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{calculateCsHours()}</div>
+                <p className="text-xs text-muted-foreground">
+                  Community service hours
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {showCsMetrics && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  CS Sessions
+                </CardTitle>
+                <Briefcase className="h-4 w-4 text-blue-700" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{csSessionsCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  Community service sessions
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -466,8 +583,8 @@ export default function VolunteerDashboard() {
                         <DialogHeader>
                           <DialogTitle>Volunteer Check-In</DialogTitle>
                           <DialogDescription>
-                            Please select a program and enter the admin code
-                            provided by staff.
+                            Please select a program, location (if applicable),
+                            and enter the admin code provided by staff.
                           </DialogDescription>
                         </DialogHeader>
 
@@ -506,8 +623,7 @@ export default function VolunteerDashboard() {
 
                           <div className="grid gap-2">
                             <Label htmlFor="location">
-                              Select Location{" "}
-                              <span className="text-red-700">*</span>
+                              Select Location 
                             </Label>
                             <select
                               id="location"
@@ -516,16 +632,14 @@ export default function VolunteerDashboard() {
                                 setSelectedLocation(e.target.value)
                               }
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                              required
                             >
                               <option value="">Select a location</option>
-                              <option value="west-philadelphia">
-                                West Philadelphia
+                              <option value="west philadelphia">West Philadelphia</option>
+                              <option value="spring garden">
+                                SpringGarden
                               </option>
-                              <option value="spring-garden">
-                                Spring Garden
-                              </option>
-                              <option value="ambler">Ambler</option>
+                              <option value="">Ambler</option>
+                              <option value="remote">Remote/Other</option>
                             </select>
                           </div>
 
@@ -544,6 +658,63 @@ export default function VolunteerDashboard() {
                               maxLength={4}
                             />
                           </div>
+
+                          <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox
+                              id="isCsSession"
+                              checked={isCsSession}
+                              onCheckedChange={(checked) =>
+                                setIsCsSession(Boolean(checked))
+                              }
+                            />
+                            <Label
+                              htmlFor="isCsSession"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              This session is for Community Service hours
+                            </Label>
+                          </div>
+
+                          {isCsSession &&
+                            volunteer?.volunteerType !== "communityService" && (
+                              <div className="space-y-4 border-t pt-4 mt-4">
+                                <p className="text-sm text-gray-600">
+                                  Please provide your Community Service details
+                                  below. This will update your volunteer
+                                  profile.
+                                </p>
+                                <div className="space-y-2">
+                                  <Label htmlFor="csReasonDialog">
+                                    Reason for Service{" "}
+                                    <span className="text-red-700">*</span>
+                                  </Label>
+                                  <Input
+                                    id="csReasonDialog"
+                                    value={csReason}
+                                    onChange={(e) =>
+                                      setCsReason(e.target.value)
+                                    }
+                                    placeholder="e.g., Court ordered, Employer, or School requirement"
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="csInstitutionDialog">
+                                    Assigning Institution{" "}
+                                    <span className="text-red-700">*</span>
+                                  </Label>
+                                  <Input
+                                    id="csInstitutionDialog"
+                                    value={csInstitution}
+                                    onChange={(e) =>
+                                      setCsInstitution(e.target.value)
+                                    }
+                                    placeholder="e.g., Philadelphia Municipal Court"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                            )}
                         </div>
 
                         <DialogFooter>
@@ -581,6 +752,20 @@ export default function VolunteerDashboard() {
                   <span className="font-medium">Name:</span>{" "}
                   {volunteer.firstName} {volunteer.lastName}
                 </p>
+                {volunteer.volunteerType === "communityService" && (
+                  <>
+                    <p className="text-sm">
+                      <span className="font-medium">Service Reason:</span>{" "}
+                      {volunteer.serviceReason || "N/A"}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">
+                        Assigning Institution:
+                      </span>{" "}
+                      {volunteer.serviceInstitution || "N/A"}
+                    </p>
+                  </>
+                )}
                 {volunteer.email && (
                   <p className="text-sm">
                     <span className="font-medium">Email:</span>{" "}
@@ -617,7 +802,7 @@ export default function VolunteerDashboard() {
           <CardContent>
             {volunteerHistory.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 font-medium">Date</th>
@@ -634,6 +819,11 @@ export default function VolunteerDashboard() {
                         Time Out
                       </th>
                       <th className="text-left py-3 px-4 font-medium">Hours</th>
+                      {showCsMetrics && (
+                        <th className="text-center py-3 px-4 font-medium">
+                          CS
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -664,7 +854,18 @@ export default function VolunteerDashboard() {
                             ? formatTime(session.checkOutTime)
                             : "N/A"}
                         </td>
-                        <td className="py-3 px-4">{session.hoursWorked}</td>
+                        <td className="py-3 px-4 text-right">
+                          {session.hoursWorked}
+                        </td>
+                        {showCsMetrics && (
+                          <td className="py-3 px-4 text-center">
+                            {session.isCommunityServiceSession ? (
+                              <Briefcase className="h-4 w-4 text-blue-600 inline-block" />
+                            ) : (
+                              ""
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

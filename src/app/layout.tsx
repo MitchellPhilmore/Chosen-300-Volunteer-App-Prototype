@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} relative`}>
-        <SplashScreen isVisible={showSplash} />
+        {/* <SplashScreen isVisible={showSplash} /> */}
 
         {!showSplash && (
           <>

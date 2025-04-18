@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, User, Briefcase } from "lucide-react";
 import { toast } from "sonner";
@@ -26,37 +26,72 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function Register() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const totalSteps = 5;
+  const totalSteps = 4;
 
-  // Form state
-  const [formData, setFormData] = useState({
-    volunteerType: "",
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    zip: "",
-    emergencyName: "",
-    emergencyPhone: "",
-    skills: "",
-    serviceReason: "",
-    serviceInstitution: "",
-    availability: {
-      weekdayMorning: false,
-      weekdayAfternoon: false,
-      weekdayEvening: false,
-      weekendMorning: false,
-      weekendAfternoon: false,
-      weekendEvening: false,
-    },
-    interests: [] as string[],
-    waiverAccepted: false,
+  // Form state - Initialize with potential pre-fill values
+  const [formData, setFormData] = useState(() => {
+    // Get initial values from query parameters only on initial load
+    const initialFirstName = searchParams.get("firstName") || "";
+    const initialLastName = searchParams.get("lastName") || "";
+    const initialEmail = searchParams.get("email") || "";
+    const initialPhone = searchParams.get("phone") || "";
+    const initialType =
+      searchParams.get("type") === "communityService" ? "communityService" : "";
+
+    return {
+      volunteerType: initialType,
+      firstName: initialFirstName,
+      lastName: initialLastName,
+      email: initialEmail,
+      phone: initialPhone,
+      address: "",
+      city: "",
+      state: "",
+      zip: "",
+      emergencyName: "",
+      emergencyPhone: "",
+      skills: "",
+      serviceReason: "",
+      serviceInstitution: "",
+      availability: {
+        weekdayMorning: false,
+        weekdayAfternoon: false,
+        weekdayEvening: false,
+        weekendMorning: false,
+        weekendAfternoon: false,
+        weekendEvening: false,
+      },
+      interests: [] as string[],
+      waiverAccepted: false,
+    };
   });
+
+  // Effect to handle initial step based on type (if provided)
+  useEffect(() => {
+    const type = searchParams.get("type");
+    // Also check if source=musicianDashboard to prevent infinite loop if user navigates back
+    const source = searchParams.get("source");
+
+    if (
+      type === "communityService" &&
+      source === "musicianDashboard" &&
+      step !== 1
+    ) {
+      // Already handled by useState initializer, do nothing if type is set
+    } else if (type === "communityService" && step === 1) {
+      // If type is set but somehow we are on step 1 (e.g., direct navigation), update state
+      setFormData((prev) => ({ ...prev, volunteerType: "communityService" }));
+    } else if (!type && source !== "musicianDashboard") {
+      // If navigated without type (regular volunteer), ensure type is regular
+      setFormData((prev) => ({ ...prev, volunteerType: "regular" }));
+    }
+
+    // We don't automatically advance the step here anymore,
+    // the pre-filled fields will just be there when step 1 loads.
+  }, [searchParams, step]); // Added step dependency
 
   // Handle form input changes
   const handleChange = (
@@ -116,11 +151,6 @@ export default function Register() {
   // Form validation for each step
   const validateStep = () => {
     if (step === 1) {
-      if (!formData.volunteerType) {
-        toast.error("Please select a volunteer type");
-        return false;
-      }
-    } else if (step === 2) {
       if (!formData.firstName || !formData.lastName) {
         toast.error("Please enter your full name");
         return false;
@@ -146,12 +176,12 @@ export default function Register() {
           return false;
         }
       }
-    } else if (step === 3) {
+    } else if (step === 2) {
       if (!formData.emergencyName || !formData.emergencyPhone) {
         toast.error("Please provide emergency contact information");
         return false;
       }
-    } else if (step === 4) {
+    } else if (step === 3) {
       // Validate availability
       const hasAvailability = Object.values(formData.availability).some(
         Boolean
@@ -166,7 +196,7 @@ export default function Register() {
         toast.error("Please select at least one area of interest");
         return false;
       }
-    } else if (step === 5) {
+    } else if (step === 4) {
       // Validate waiver acceptance
       if (!formData.waiverAccepted) {
         toast.error("You must accept the waiver to continue");
@@ -226,81 +256,6 @@ export default function Register() {
   const renderStepContent = () => {
     switch (step) {
       case 1:
-        return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-6"
-          >
-            <h3 className="text-lg font-medium">Select Volunteer Type</h3>
-            <RadioGroup
-              value={formData.volunteerType}
-              onValueChange={handleVolunteerTypeChange}
-              className="space-y-3"
-            >
-              <Label
-                htmlFor="regular"
-                className={`flex items-center space-x-3 rounded-md border p-4 cursor-pointer transition-colors ${
-                  formData.volunteerType === "regular"
-                    ? "border-red-700 bg-red-50"
-                    : "border-gray-200 hover:border-gray-400"
-                }`}
-              >
-                <RadioGroupItem
-                  value="regular"
-                  id="regular"
-                  className={
-                    formData.volunteerType === "regular"
-                      ? "border-red-700 text-red-700"
-                      : ""
-                  }
-                />
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  <span className="font-medium">Regular Volunteer</span>
-                </div>
-              </Label>
-              <Label
-                htmlFor="communityService"
-                className={`flex items-center space-x-3 rounded-md border p-4 cursor-pointer transition-colors ${
-                  formData.volunteerType === "communityService"
-                    ? "border-red-700 bg-red-50"
-                    : "border-gray-200 hover:border-gray-400"
-                }`}
-              >
-                <RadioGroupItem
-                  value="communityService"
-                  id="communityService"
-                  className={
-                    formData.volunteerType === "communityService"
-                      ? "border-red-700 text-red-700"
-                      : ""
-                  }
-                />
-                <div className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5" />
-                  <span className="font-medium">
-                    Community Service Volunteer
-                  </span>
-                </div>
-              </Label>
-            </RadioGroup>
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                type="button"
-                onClick={nextStep}
-                className="w-full bg-red-700 hover:bg-red-800"
-                disabled={!formData.volunteerType}
-              >
-                Continue to Personal Info
-              </Button>
-            </motion.div>
-          </motion.div>
-        );
-
-      case 2:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -448,7 +403,7 @@ export default function Register() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={prevStep}
+                onClick={() => router.push("/")}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
                 Back
@@ -470,7 +425,7 @@ export default function Register() {
           </motion.div>
         );
 
-      case 3:
+      case 2:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -538,7 +493,7 @@ export default function Register() {
           </motion.div>
         );
 
-      case 4:
+      case 3:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -709,7 +664,7 @@ export default function Register() {
           </motion.div>
         );
 
-      case 5:
+      case 4:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -870,18 +825,15 @@ export default function Register() {
             </div>
             <div className="flex justify-between text-xs text-gray-500 px-1 mt-1">
               <span className={step >= 1 ? "text-red-700 font-medium" : ""}>
-                Type
-              </span>
-              <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
                 Personal Info
               </span>
-              <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
+              <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
                 Emergency Contact
               </span>
-              <span className={step >= 4 ? "text-red-700 font-medium" : ""}>
+              <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
                 Preferences
               </span>
-              <span className={step >= 5 ? "text-red-700 font-medium" : ""}>
+              <span className={step >= 4 ? "text-red-700 font-medium" : ""}>
                 Waiver
               </span>
             </div>

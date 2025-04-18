@@ -28,11 +28,9 @@ export default function Navbar() {
     router.push("/");
   };
 
-  return ( 
+  return (
     <header className="sticky top-0 z-50 w-full border-b bg-white">
       <div className="container flex h-16 items-center justify-end">
-       
-
         <div className="hidden md:flex md:items-center md:space-x-4">
           {isAdminLoggedIn ? (
             <Button
@@ -41,7 +39,7 @@ export default function Navbar() {
               className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Admin Logout
+              Logout
             </Button>
           ) : (
             <Link href="/admin/login" passHref>
@@ -74,7 +72,7 @@ export default function Navbar() {
                   className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  Admin Logout
+                  Logout
                 </Button>
               ) : (
                 <Link href="/admin/login" passHref>

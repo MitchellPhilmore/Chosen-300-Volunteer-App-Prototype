@@ -18,19 +18,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const INSTRUMENTS = [
-  { id: "piano", label: "Piano" },
-  { id: "guitar", label: "Guitar" },
+  { id: "worship", label: "Worship" },
   { id: "drums", label: "Drums" },
-  { id: "bass", label: "Bass" },
-  { id: "vocals", label: "Vocals" },
-  { id: "violin", label: "Violin" },
-  { id: "saxophone", label: "Saxophone" },
-  { id: "trumpet", label: "Trumpet" },
-  { id: "flute", label: "Flute" },
-  { id: "clarinet", label: "Clarinet" },
-  { id: "other", label: "Other" },
+  { id: "keyboard", label: "Keyboard" },
 ];
 
 export default function MusicianRegistration() {
@@ -54,12 +53,10 @@ export default function MusicianRegistration() {
     }));
   };
 
-  const handleInstrumentChange = (instrumentId: string) => {
+  const handleInstrumentChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
-      instruments: prev.instruments.includes(instrumentId)
-        ? prev.instruments.filter((id) => id !== instrumentId)
-        : [...prev.instruments, instrumentId],
+      instruments: [value], // Only allow one instrument selection
     }));
   };
 
@@ -218,30 +215,23 @@ export default function MusicianRegistration() {
 
               <div className="space-y-2">
                 <Label>
-                  Instruments Played <span className="text-red-700">*</span>
+                  Primary Instrument <span className="text-red-700">*</span>
                 </Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
-                  {INSTRUMENTS.map((instrument) => (
-                    <div
-                      key={instrument.id}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`musician-${instrument.id}`}
-                        checked={formData.instruments.includes(instrument.id)}
-                        onCheckedChange={() =>
-                          handleInstrumentChange(instrument.id)
-                        }
-                      />
-                      <Label
-                        htmlFor={`musician-${instrument.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
+                <Select
+                  value={formData.instruments[0] || ""}
+                  onValueChange={handleInstrumentChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your primary instrument" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INSTRUMENTS.map((instrument) => (
+                      <SelectItem key={instrument.id} value={instrument.id}>
                         {instrument.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
