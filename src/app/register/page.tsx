@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SignatureMaker } from "@docuseal/signature-maker-react";
 
 export default function Register() {
   const router = useRouter();
@@ -66,6 +66,7 @@ export default function Register() {
       },
       interests: [] as string[],
       waiverAccepted: false,
+      waiverSignature: "",
     };
   });
 
@@ -148,6 +149,13 @@ export default function Register() {
     }));
   };
 
+  const handleWaiverSignatureChange = (data: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      waiverSignature: data,
+    }));
+  };
+
   // Form validation for each step
   const validateStep = () => {
     if (step === 1) {
@@ -200,6 +208,10 @@ export default function Register() {
       // Validate waiver acceptance
       if (!formData.waiverAccepted) {
         toast.error("You must accept the waiver to continue");
+        return false;
+      }
+      if (!formData.waiverSignature) {
+        toast.error("You must sign the waiver to continue");
         return false;
       }
     }
@@ -759,8 +771,18 @@ export default function Register() {
                 I have read and agree to the terms of the Waiver and Release of
                 Liability
               </Label>
+           
             </div>
-
+            <SignatureMaker
+                downloadOnSave={false}
+                onSave={(dataURL) =>
+                  setFormData((prev) => ({ ...prev, waiverSignature: dataURL }))
+                }
+                saveButtonText="Save"
+                canvasClass="h-50"
+                withColorSelect={false}
+                withUpload={false}
+              />
             <div className="flex gap-3 pt-4">
               <Button variant="outline" onClick={prevStep} className="flex-1">
                 Back
