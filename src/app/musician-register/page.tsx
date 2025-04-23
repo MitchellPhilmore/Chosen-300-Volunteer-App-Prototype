@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SignatureMaker } from "@docuseal/signature-maker-react";
 
 const INSTRUMENTS = [
   { id: "worship", label: "Worship" },
@@ -338,6 +339,7 @@ export default function MusicianRegistration() {
                 </div>
                 <div className="flex items-center space-x-2 mt-3">
                   <Checkbox
+                    className="border-red-700"
                     id="waiver-acceptance"
                     checked={formData.waiverAccepted}
                     onCheckedChange={handleWaiverChange}
@@ -347,6 +349,15 @@ export default function MusicianRegistration() {
                     of Liability <span className="text-red-700">*</span>
                   </Label>
                 </div>
+                <SignatureMaker
+                downloadOnSave={false}
+                onSave={(dataURL) => console.log(dataURL)}
+                withColorSelect={false}
+                withUpload={false}
+                withTyped={false}
+                textTypeButtonClass="hidden"
+                saveButtonClass="bg-red-700 hover:bg-red-800 h-10 w-20 text-white"
+              />
               </div>
 
               <motion.div

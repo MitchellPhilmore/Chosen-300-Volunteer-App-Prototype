@@ -186,58 +186,61 @@ export default function SignIn() {
                 </div>
               </form>
             ) : (
-              <div className="space-y-6">
-                <p className="text-center">
+              <div className="space-y-8">
+                <p className="text-center text-lg">
                   You're registered as multiple roles. Please select how you'd
                   like to sign in:
                 </p>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   <motion.div
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    className="w-full"
                   >
                     <Button
                       onClick={() => handleRoleSelection("musician")}
-                      className="w-full bg-red-700 hover:bg-red-800 h-24 flex flex-col"
+                      className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-2"
                     >
-                      <Music className="h-8 w-8 mb-2" />
-                      <span>Musician</span>
+                      <Music className="h-12 w-12 mb-3" />
+                      <span className="text-center">Musician</span>
                     </Button>
                   </motion.div>
 
                   <motion.div
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    className="w-full"
                   >
                     <Button
                       onClick={() => handleRoleSelection("volunteer")}
-                      className="w-full bg-red-700 hover:bg-red-800 h-24 flex flex-col"
+                      className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-2"
                     >
-                      <UserPlus className="h-8 w-8 mb-2" />
-                      <span>Volunteer</span>
+                      <UserPlus className="h-12 w-12 mb-3" />
+                      <span className="text-center">Volunteer</span>
                     </Button>
                   </motion.div>
 
                   <motion.div
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    className="w-full sm:col-span-2 lg:col-span-1"
                   >
                     <Button
                       onClick={() => handleRoleSelection("communityService")}
-                      className="w-full bg-red-700 hover:bg-red-800 h-24 flex flex-col"
+                      className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-4 whitespace-normal"
                     >
-                      <Heart className="h-8 w-8 mb-2" />
-                      <span>Community Service</span>
+                      <Heart className="h-12 w-12 mb-3" />
+                      <span className="text-center">Community Service</span>
                     </Button>
                   </motion.div>
                 </div>
 
-                <div className="text-center">
+                <div className="text-center pt-4">
                   <Button
                     variant="link"
                     onClick={() => setShowRoleSelection(false)}
-                    className="text-red-700"
+                    className="text-red-700 text-lg"
                   >
                     Back to sign in
                   </Button>

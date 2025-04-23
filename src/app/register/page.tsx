@@ -5,9 +5,11 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, User, Briefcase } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { v4 as uuidv4 } from "uuid";
+import { saveVolunteer } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,18 +22,25 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SignatureMaker } from "@docuseal/signature-maker-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Register() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 3; // Reduced from 4 to 3 (no emergency contact)
 
-  // Form state - Initialize with potential pre-fill values
+  // Simplified form state
   const [formData, setFormData] = useState(() => {
     // Get initial values from query parameters only on initial load
     const initialFirstName = searchParams.get("firstName") || "";
@@ -47,24 +56,10 @@ export default function Register() {
       lastName: initialLastName,
       email: initialEmail,
       phone: initialPhone,
-      address: "",
-      city: "",
-      state: "",
-      zip: "",
-      emergencyName: "",
-      emergencyPhone: "",
-      skills: "",
       serviceReason: "",
+      serviceReasonOther: "", // New field for custom "other" reason
       serviceInstitution: "",
-      availability: {
-        weekdayMorning: false,
-        weekdayAfternoon: false,
-        weekdayEvening: false,
-        weekendMorning: false,
-        weekendAfternoon: false,
-        weekendEvening: false,
-      },
-      interests: [] as string[],
+      site: "", // New field for site selection
       waiverAccepted: false,
       waiverSignature: "",
     };
@@ -73,7 +68,6 @@ export default function Register() {
   // Effect to handle initial step based on type (if provided)
   useEffect(() => {
     const type = searchParams.get("type");
-    // Also check if source=musicianDashboard to prevent infinite loop if user navigates back
     const source = searchParams.get("source");
 
     if (
@@ -89,10 +83,7 @@ export default function Register() {
       // If navigated without type (regular volunteer), ensure type is regular
       setFormData((prev) => ({ ...prev, volunteerType: "regular" }));
     }
-
-    // We don't automatically advance the step here anymore,
-    // the pre-filled fields will just be there when step 1 loads.
-  }, [searchParams, step]); // Added step dependency
+  }, [searchParams, step]);
 
   // Handle form input changes
   const handleChange = (
@@ -112,33 +103,12 @@ export default function Register() {
     }));
   };
 
-  // Handle checkbox changes for availability
-  const handleAvailabilityChange = (key: string) => {
+  // Handle site selection
+  const handleSiteChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
-      availability: {
-        ...prev.availability,
-        [key]: !prev.availability[key as keyof typeof prev.availability],
-      },
+      site: value,
     }));
-  };
-
-  // Handle interest selection
-  const handleInterestChange = (interest: string) => {
-    setFormData((prev) => {
-      const currentInterests = [...prev.interests];
-      if (currentInterests.includes(interest)) {
-        return {
-          ...prev,
-          interests: currentInterests.filter((i) => i !== interest),
-        };
-      } else {
-        return {
-          ...prev,
-          interests: [...currentInterests, interest],
-        };
-      }
-    });
   };
 
   // Handle waiver acceptance
@@ -149,10 +119,28 @@ export default function Register() {
     }));
   };
 
+  const [signatureSaved, setSignatureSaved] = useState(false);
+
   const handleWaiverSignatureChange = (data: string) => {
+    console.log("Signature data received:", data);
+    // Only update if we received actual data (not empty)
+    if (data && data !== "") {
+      setFormData((prev) => ({
+        ...prev,
+        waiverSignature: data,
+      }));
+      setSignatureSaved(true);
+      toast.success("Signature saved successfully");
+    }
+  };
+
+  // Handle service reason dropdown change
+  const handleServiceReasonChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
-      waiverSignature: data,
+      serviceReason: value,
+      // Reset the "other" reason if not selecting "other"
+      serviceReasonOther: value !== "other" ? "" : prev.serviceReasonOther,
     }));
   };
 
@@ -176,7 +164,14 @@ export default function Register() {
 
       if (formData.volunteerType === "communityService") {
         if (!formData.serviceReason) {
-          toast.error("Please enter the reason for your community service");
+          toast.error("Please select a reason for your community service");
+          return false;
+        }
+        if (
+          formData.serviceReason === "other" &&
+          !formData.serviceReasonOther
+        ) {
+          toast.error("Please specify your reason for community service");
           return false;
         }
         if (!formData.serviceInstitution) {
@@ -185,26 +180,12 @@ export default function Register() {
         }
       }
     } else if (step === 2) {
-      if (!formData.emergencyName || !formData.emergencyPhone) {
-        toast.error("Please provide emergency contact information");
+      // Validate site selection
+      if (!formData.site) {
+        toast.error("Please select a preferred site");
         return false;
       }
     } else if (step === 3) {
-      // Validate availability
-      const hasAvailability = Object.values(formData.availability).some(
-        Boolean
-      );
-      if (!hasAvailability) {
-        toast.error("Please select at least one availability time slot");
-        return false;
-      }
-
-      // Validate interests
-      if (formData.interests.length === 0) {
-        toast.error("Please select at least one area of interest");
-        return false;
-      }
-    } else if (step === 4) {
       // Validate waiver acceptance
       if (!formData.waiverAccepted) {
         toast.error("You must accept the waiver to continue");
@@ -232,20 +213,16 @@ export default function Register() {
   };
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateStep()) return;
 
     setIsLoading(true);
 
-    // In a real app, this would be an API call to register the volunteer
-    setTimeout(() => {
-      // Store volunteer data in localStorage
-      const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
-
+    try {
       // Create a unique ID for the volunteer
-      const volunteerId = crypto.randomUUID();
+      const volunteerId = uuidv4();
 
       const newVolunteer = {
         id: volunteerId,
@@ -253,16 +230,35 @@ export default function Register() {
         registrationDate: new Date().toISOString(),
       };
 
-      volunteers.push(newVolunteer);
-      localStorage.setItem("volunteers", JSON.stringify(volunteers));
+      // Save to Firestore
+      const result = await saveVolunteer(newVolunteer);
 
-      toast.success("Registration successful!", {
-        description: "Thank you for registering as a volunteer.",
+      if (result.success) {
+        toast.success("Registration successful!", {
+          description: "Thank you for registering as a volunteer.",
+        });
+
+        // Also save to localStorage as a backup
+        const volunteers = JSON.parse(
+          localStorage.getItem("volunteers") || "[]"
+        );
+        volunteers.push(newVolunteer);
+        localStorage.setItem("volunteers", JSON.stringify(volunteers));
+
+        router.push(`/volunteer-dashboard/${volunteerId}`);
+      } else {
+        toast.error("Registration failed", {
+          description: "Please try again or contact support.",
+        });
+      }
+    } catch (error) {
+      console.error("Error during registration:", error);
+      toast.error("Registration failed", {
+        description: "Please try again or contact support.",
       });
-
+    } finally {
       setIsLoading(false);
-      router.push(`/volunteer-dashboard/${volunteerId}`);
-    }, 1500);
+    }
   };
 
   const renderStepContent = () => {
@@ -341,14 +337,36 @@ export default function Register() {
                     <Label htmlFor="serviceReason">
                       Reason for Service <span className="text-red-700">*</span>
                     </Label>
-                    <Input
-                      id="serviceReason"
-                      name="serviceReason"
+                    <Select
                       value={formData.serviceReason}
-                      onChange={handleChange}
-                      placeholder="e.g., Court ordered, School requirement"
-                      required
-                    />
+                      onValueChange={handleServiceReasonChange}
+                    >
+                      <SelectTrigger id="serviceReason" className="w-full">
+                        <SelectValue placeholder="Select a reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="court-ordered">
+                          Court ordered
+                        </SelectItem>
+                        <SelectItem value="school">School</SelectItem>
+                        <SelectItem value="work">Work</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {formData.serviceReason === "other" && (
+                      <div className="mt-2">
+                        <Input
+                          id="serviceReasonOther"
+                          name="serviceReasonOther"
+                          value={formData.serviceReasonOther}
+                          onChange={handleChange}
+                          placeholder="Please specify your reason"
+                          className="mt-1"
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -367,48 +385,6 @@ export default function Register() {
                   </div>
                 </div>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Street Address</Label>
-                <Input
-                  id="address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="state">State</Label>
-                  <Input
-                    id="state"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="zip">ZIP Code</Label>
-                  <Input
-                    id="zip"
-                    name="zip"
-                    value={formData.zip}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
             </div>
 
             <div className="flex space-x-4">
@@ -430,7 +406,7 @@ export default function Register() {
                   onClick={nextStep}
                   className="w-full bg-red-700 hover:bg-red-800"
                 >
-                  Continue to Emergency Contact
+                  Continue to Site Selection
                 </Button>
               </motion.div>
             </div>
@@ -447,205 +423,49 @@ export default function Register() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Emergency Contact</h3>
+              <h3 className="text-lg font-medium">
+                Select Your Preferred Site
+              </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emergencyName">
-                    Contact Name <span className="text-red-700">*</span>
-                  </Label>
-                  <Input
-                    id="emergencyName"
-                    name="emergencyName"
-                    value={formData.emergencyName}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="emergencyPhone">
-                    Contact Phone <span className="text-red-700">*</span>
-                  </Label>
-                  <Input
-                    id="emergencyPhone"
-                    name="emergencyPhone"
-                    value={formData.emergencyPhone}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex space-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={prevStep}
-                className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
-              >
-                Back
-              </Button>
-
-              <motion.div
-                className="w-1/2"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  type="button"
-                  onClick={nextStep}
-                  className="w-full bg-red-700 hover:bg-red-800"
+              <div className="space-y-4">
+                <RadioGroup
+                  value={formData.site}
+                  onValueChange={handleSiteChange}
+                  className="space-y-4"
                 >
-                  Continue to Preferences
-                </Button>
-              </motion.div>
-            </div>
-          </motion.div>
-        );
-
-      case 3:
-        return (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-6"
-          >
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Volunteer Preferences</h3>
-
-              <div className="space-y-4">
-                <Label>Areas of Interest</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    "Meal Service",
-                    "Food Pantry",
-                    "Clothing Distribution",
-                    "Administrative",
-                    "Community Outreach",
-                    "Special Events",
-                    "Fundraising",
-                    "Facilities Maintenance",
-                  ].map((interest) => (
-                    <div key={interest} className="flex items-center space-x-3">
-                      <Checkbox
-                        id={`interest-${interest}`}
-                        checked={formData.interests.includes(interest)}
-                        onCheckedChange={() => handleInterestChange(interest)}
-                        className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                      />
-                      <label
-                        htmlFor={`interest-${interest}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {interest}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <Label>Availability</Label>
-                <div className="border rounded-lg p-4">
-                  <div className="grid grid-cols-4 gap-6">
-                    {/* Header Row */}
-                    <div className="col-start-2 col-span-3 grid grid-cols-3 gap-4">
-                      <div className="text-center text-sm font-medium text-gray-600">
-                        Morning
-                      </div>
-                      <div className="text-center text-sm font-medium text-gray-600">
-                        Afternoon
-                      </div>
-                      <div className="text-center text-sm font-medium text-gray-600">
-                        Evening
-                      </div>
-                    </div>
-
-                    {/* Weekday Row */}
-                    <div className="text-sm font-medium text-gray-700">
-                      Weekdays
-                    </div>
-                    <div className="col-span-3 grid grid-cols-3 gap-4">
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekdayMorning}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekdayMorning")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekdayAfternoon}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekdayAfternoon")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekdayEvening}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekdayEvening")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Weekend Row */}
-                    <div className="text-sm font-medium text-gray-700">
-                      Weekends
-                    </div>
-                    <div className="col-span-3 grid grid-cols-3 gap-4">
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekendMorning}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekendMorning")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekendAfternoon}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekendAfternoon")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                      <div className="flex justify-center">
-                        <Checkbox
-                          checked={formData.availability.weekendEvening}
-                          onCheckedChange={() =>
-                            handleAvailabilityChange("weekendEvening")
-                          }
-                          className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                        />
-                      </div>
-                    </div>
+                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                    <RadioGroupItem
+                      value="west-philadelphia"
+                      id="west-philadelphia"
+                    />
+                    <Label
+                      htmlFor="west-philadelphia"
+                      className="font-medium cursor-pointer"
+                    >
+                      West Philadelphia
+                    </Label>
                   </div>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="skills">Skills & Experience</Label>
-                <Textarea
-                  id="skills"
-                  name="skills"
-                  value={formData.skills}
-                  onChange={handleChange}
-                  placeholder="Please share any relevant skills or experience you have"
-                  className="min-h-[100px]"
-                />
+                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                    <RadioGroupItem value="spring-garden" id="spring-garden" />
+                    <Label
+                      htmlFor="spring-garden"
+                      className="font-medium cursor-pointer"
+                    >
+                      Spring Garden
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                    <RadioGroupItem value="ambler" id="ambler" />
+                    <Label
+                      htmlFor="ambler"
+                      className="font-medium cursor-pointer"
+                    >
+                      Ambler
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
             </div>
 
@@ -676,7 +496,7 @@ export default function Register() {
           </motion.div>
         );
 
-      case 4:
+      case 3:
         return (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -763,6 +583,7 @@ export default function Register() {
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
+                className="border-red-700"
                 id="waiver-acceptance"
                 checked={formData.waiverAccepted}
                 onCheckedChange={handleWaiverChange}
@@ -771,18 +592,40 @@ export default function Register() {
                 I have read and agree to the terms of the Waiver and Release of
                 Liability
               </Label>
-           
             </div>
-            <SignatureMaker
-                downloadOnSave={false}
-                onSave={(dataURL) =>
-                  setFormData((prev) => ({ ...prev, waiverSignature: dataURL }))
-                }
-                saveButtonText="Save"
-                canvasClass="h-50"
-                withColorSelect={false}
-                withUpload={false}
-              />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="signature" className="font-medium">
+                  Please sign below
+                </Label>
+                {signatureSaved && (
+                  <span className="text-green-600 text-sm">
+                    ✓ Signature saved
+                  </span>
+                )}
+              </div>
+
+              <div className="border rounded-md p-4">
+                <SignatureMaker
+                  downloadOnSave={false}
+                  onSave={handleWaiverSignatureChange}
+                  saveButtonText="Save Signature"
+                  saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
+                  canvasClass="h-50 w-full"
+                  withColorSelect={false}
+                  withUpload={false}
+                  withTyped={false}
+                  textTypeButtonClass="hidden"
+                />
+              </div>
+            </div>
+
+            {!signatureSaved && (
+              <p className="text-amber-600 text-sm">
+                Please sign and click "Save Signature" before continuing
+              </p>
+            )}
+
             <div className="flex gap-3 pt-4">
               <Button variant="outline" onClick={prevStep} className="flex-1">
                 Back
@@ -850,12 +693,9 @@ export default function Register() {
                 Personal Info
               </span>
               <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
-                Emergency Contact
+                Site Selection
               </span>
               <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
-                Preferences
-              </span>
-              <span className={step >= 4 ? "text-red-700 font-medium" : ""}>
                 Waiver
               </span>
             </div>

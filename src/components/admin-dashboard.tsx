@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   Clock,
@@ -13,6 +14,7 @@ import {
   Music,
   LogOut,
   History,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +30,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import {
+  auth,
+  signOut,
+  getAllVolunteers,
+  getAllMusicians,
+  getAllActiveVolunteerSessions,
+  getAllCompletedVolunteerSessions,
+  getAllActiveMusicianSessions,
+  getAllCompletedMusicianSessions,
+  completeVolunteerSession,
+  completeMusicianSession,
+
+  getDailyCode,
+  saveDailyCode,
+  getCodeAuditLog,
+  saveCodeAuditLogEntry,
+} from "@/lib/firebase";
+import { Timestamp } from "firebase/firestore";
 
 interface Volunteer {
   id: string;
@@ -48,9 +68,11 @@ interface Volunteer {
   serviceReason?: string;
   serviceInstitution?: string;
   availability?: any;
+  waiverSignature?: string;
 }
 
 interface VolunteerSession {
+  id: string;
   identifier: string;
   program: string;
   checkInTime: string;
@@ -63,6 +85,10 @@ interface VolunteerSession {
     firstName: string;
     lastName: string;
   };
+  checkInTimeTimestamp?: Timestamp;
+  checkOutTimeTimestamp?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 interface Musician {
@@ -76,6 +102,7 @@ interface Musician {
 }
 
 interface MusicianSession {
+  id: string;
   musicianId: string;
   activity: string;
   signInTime: string;
@@ -86,6 +113,10 @@ interface MusicianSession {
     lastName: string;
     instruments: string[];
   };
+  signInTimeTimestamp?: Timestamp;
+  checkOutTimeTimestamp?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 interface Stats {
@@ -102,9 +133,11 @@ interface DailyCode {
   expiresAt: string;
   createdAt: string;
   createdBy: string;
+  updatedAt?: string;
 }
 
 interface CodeAuditLog {
+  id: string;
   code: string;
   action: "created" | "updated" | "generated";
   timestamp: string;
@@ -141,98 +174,247 @@ export default function AdminDashboard() {
   const [showCode, setShowCode] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [auditLog, setAuditLog] = useState<CodeAuditLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSigningOutVolunteer, setIsSigningOutVolunteer] = useState<
+    string | null
+  >(null);
+  const [isSigningOutMusician, setIsSigningOutMusician] = useState<
+    string | null
+  >(null);
+  const [isUpdatingCode, setIsUpdatingCode] = useState(false);
 
-  const loadDashboardData = useCallback(() => {
-    const active = JSON.parse(localStorage.getItem("activeVolunteers") || "[]");
-    const completed = JSON.parse(
-      localStorage.getItem("completedSessions") || "[]"
-    );
-    const registered = JSON.parse(localStorage.getItem("volunteers") || "[]");
-    const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-    const musicianSignIns = JSON.parse(
-      localStorage.getItem("musicianSignIns") || "[]"
-    );
+  const router = useRouter();
 
-    const now = new Date();
-    const midnight = new Date(now);
-    midnight.setHours(0, 0, 0, 0);
+  const loadDashboardData = useCallback(async () => {
+    setIsRefreshing(true);
 
-    const activeMusiciansData = musicianSignIns.filter(
-      (session: MusicianSession) => {
-        const signInTime = new Date(session.signInTime);
-        return signInTime >= midnight && !session.checkOutTime;
-      }
-    );
+    try {
+      const [
+        activeVolunteersResult,
+        completedSessionsResult,
+        registeredVolunteersResult,
+        registeredMusiciansResult,
+        activeMusiciansResult,
+        completedMusiciansResult,
+        dailyCodeResult,
+        auditLogResult,
+      ] = await Promise.all([
+        getAllActiveVolunteerSessions(),
+        getAllCompletedVolunteerSessions(),
+        getAllVolunteers(),
+        getAllMusicians(),
+        getAllActiveMusicianSessions(),
+        getAllCompletedMusicianSessions(),
+        getDailyCode(),
+        getCodeAuditLog(),
+      ]);
 
-    const completedMusiciansData = musicianSignIns.filter(
-      (session: MusicianSession) => {
-        const signInTime = new Date(session.signInTime);
-        return session.checkOutTime || signInTime < midnight;
-      }
-    );
+      const regVolunteers = registeredVolunteersResult.success
+        ? registeredVolunteersResult.data || []
+        : [];
+      setRegisteredVolunteers(regVolunteers);
 
-    setActiveVolunteers(active);
-    setCompletedSessions(completed);
-    setRegisteredVolunteers(registered);
-    setRegisteredMusicians(musicians);
-    setActiveMusicians(activeMusiciansData);
-    setCompletedMusicianSessions(completedMusiciansData);
+      const regMusicians = registeredMusiciansResult.success
+        ? registeredMusiciansResult.data || []
+        : [];
+      setRegisteredMusicians(regMusicians);
 
-    const totalVolunteerHours = completed.reduce(
-      (sum: number, session: VolunteerSession) =>
-        sum + Number.parseFloat(session.hoursWorked || "0"),
-      0
-    );
-    const ratingsCount = completed?.filter(
-      (s: VolunteerSession) => s.rating && s.rating > 0
-    ).length;
-    const ratingsSum = completed.reduce(
-      (sum: number, session: VolunteerSession) => sum + (session.rating || 0),
-      0
-    );
+      const actVolunteers = activeVolunteersResult.success
+        ? activeVolunteersResult.data || []
+        : [];
+      const compSessions = completedSessionsResult.success
+        ? completedSessionsResult.data || []
+        : [];
 
-    setStats({
-      totalHours: Number.parseFloat(totalVolunteerHours.toFixed(2)),
-      totalVolunteers: completed.length,
-      totalMusicians: completedMusiciansData.length,
-      averageRating:
-        ratingsCount > 0
-          ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
-          : 0,
-      registeredCount: registered.length,
-      registeredMusicians: musicians.length,
-    });
+      const enrichVolunteerSession = (session: any) => {
+        const volunteer = regVolunteers.find(
+          (v) => v.id === session.volunteerInfo?.id
+        );
+        return {
+          ...session,
+          volunteerInfo: volunteer
+            ? {
+                id: volunteer.id,
+                firstName: volunteer.firstName,
+                lastName: volunteer.lastName,
+              }
+            : session.volunteerInfo,
+          identifier: session.volunteerInfo?.id
+            ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
+            : session.identifier || "Unknown ID",
+          checkInTime: session.checkInTimeTimestamp?.toDate
+            ? session.checkInTimeTimestamp.toDate().toISOString()
+            : session.checkInTime,
+          checkOutTime: session.checkOutTimeTimestamp?.toDate
+            ? session.checkOutTimeTimestamp.toDate().toISOString()
+            : session.checkOutTime,
+        };
+      };
 
-    const savedCode = localStorage.getItem("dailyCode");
-    if (savedCode) {
-      const parsedCode = JSON.parse(savedCode);
-      if (new Date(parsedCode.expiresAt) > new Date()) {
-        setDailyCode(parsedCode);
+      setActiveVolunteers(actVolunteers.map(enrichVolunteerSession));
+      setCompletedSessions(compSessions.map(enrichVolunteerSession));
+
+      const actMusicians = activeMusiciansResult.success
+        ? activeMusiciansResult.data || []
+        : [];
+      const compMusicianSessions = completedMusiciansResult.success
+        ? completedMusiciansResult.data || []
+        : [];
+
+      const enrichMusicianSession = (session: any) => {
+        const musician = regMusicians.find((m) => m.id === session.musicianId);
+        return {
+          ...session,
+          musicianInfo: musician
+            ? {
+                id: musician.id,
+                firstName: musician.firstName,
+                lastName: musician.lastName,
+                instruments: musician.instruments,
+              }
+            : null,
+          signInTime: session.signInTimeTimestamp?.toDate
+            ? session.signInTimeTimestamp.toDate().toISOString()
+            : session.signInTime,
+          checkOutTime: session.checkOutTimeTimestamp?.toDate
+            ? session.checkOutTimeTimestamp.toDate().toISOString()
+            : session.checkOutTime,
+        };
+      };
+
+      setActiveMusicians(actMusicians.map(enrichMusicianSession));
+      setCompletedMusicianSessions(
+        compMusicianSessions.map(enrichMusicianSession)
+      );
+
+      const totalVolunteerHours = compSessions.reduce(
+        (sum: number, session: VolunteerSession) =>
+          sum + Number.parseFloat(session.hoursWorked || "0"),
+        0
+      );
+      const ratingsCount = compSessions?.filter(
+        (s: VolunteerSession) => s.rating && s.rating > 0
+      ).length;
+      const ratingsSum = compSessions.reduce(
+        (sum: number, session: VolunteerSession) => sum + (session.rating || 0),
+        0
+      );
+
+      setStats({
+        totalHours: Number.parseFloat(totalVolunteerHours.toFixed(2)),
+        totalVolunteers: compSessions.length,
+        totalMusicians: compMusicianSessions.length,
+        averageRating:
+          ratingsCount > 0
+            ? Number.parseFloat((ratingsSum / ratingsCount).toFixed(1))
+            : 0,
+        registeredCount: regVolunteers.length,
+        registeredMusicians: regMusicians.length,
+      });
+
+      if (dailyCodeResult.success && dailyCodeResult.data) {
+        if (dailyCodeResult.data.code && dailyCodeResult.data.createdBy) {
+          setDailyCode(dailyCodeResult.data as DailyCode);
+        } else {
+          console.warn(
+            "Fetched daily code data is incomplete:",
+            dailyCodeResult.data
+          );
+          setDailyCode(null);
+          toast.error("Failed to load daily code: Incomplete data received.");
+        }
       } else {
         setDailyCode(null);
-        localStorage.removeItem("dailyCode");
+        if (
+          dailyCodeResult.error &&
+          dailyCodeResult.message !== "Daily code not set" &&
+          dailyCodeResult.message !== "Daily code expired"
+        ) {
+          console.error(
+            "Error loading daily code:",
+            dailyCodeResult.error || dailyCodeResult.message
+          );
+          toast.error("Failed to load daily code");
+        }
       }
-    }
 
-    const savedAuditLog = localStorage.getItem("codeAuditLog");
-    if (savedAuditLog) {
-      setAuditLog(JSON.parse(savedAuditLog));
+      if (auditLogResult.success && auditLogResult.data) {
+        setAuditLog(auditLogResult.data);
+      } else {
+        setAuditLog([]);
+        if (auditLogResult.error) {
+          console.error("Error loading audit log:", auditLogResult.error);
+          toast.error("Failed to load code audit log");
+        }
+      }
+
+      if (!activeVolunteersResult.success)
+        console.error(
+          "Failed to load active volunteers:",
+          activeVolunteersResult.error
+        );
+      if (!completedSessionsResult.success)
+        console.error(
+          "Failed to load completed sessions:",
+          completedSessionsResult.error
+        );
+      if (!registeredVolunteersResult.success)
+        console.error(
+          "Failed to load registered volunteers:",
+          registeredVolunteersResult.error
+        );
+      if (!registeredMusiciansResult.success)
+        console.error(
+          "Failed to load registered musicians:",
+          registeredMusiciansResult.error
+        );
+      if (!activeMusiciansResult.success)
+        console.error(
+          "Failed to load active musicians:",
+          activeMusiciansResult.error
+        );
+      if (!completedMusiciansResult.success)
+        console.error(
+          "Failed to load completed musician sessions:",
+          completedMusiciansResult.error
+        );
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      toast.error("Failed to load dashboard data. Please try refreshing.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
+    setIsLoading(true);
     loadDashboardData();
   }, [loadDashboardData]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return "N/A";
+    const date =
+      typeof dateString === "string"
+        ? new Date(dateString)
+        : (dateString as any)?.toDate
+        ? (dateString as any).toDate()
+        : null;
+    return date ? date.toLocaleDateString() : "Invalid Date";
   };
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatTime = (dateString: string | undefined) => {
+    if (!dateString) return "N/A";
+    const date =
+      typeof dateString === "string"
+        ? new Date(dateString)
+        : (dateString as any)?.toDate
+        ? (dateString as any).toDate()
+        : null;
+    return date
+      ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "Invalid Time";
   };
 
   const getVolunteerType = useCallback(
@@ -390,16 +572,17 @@ export default function AdminDashboard() {
       "Duration (min)",
     ];
     const rows = completedMusicianSessions.map((session) => {
-      const musicianInfo = registeredMusicians.find(
-        (m) => m.id === session.musicianId
-      );
-      const duration = session.checkOutTime
-        ? Math.round(
-            (new Date(session.checkOutTime).getTime() -
-              new Date(session.signInTime).getTime()) /
-              60000
-          )
-        : "";
+      const musicianInfo =
+        session.musicianInfo ||
+        registeredMusicians.find((m) => m.id === session.musicianId);
+      const duration =
+        session.checkOutTime && session.signInTime
+          ? Math.round(
+              (new Date(session.checkOutTime).getTime() -
+                new Date(session.signInTime).getTime()) /
+                60000
+            )
+          : "";
       return [
         musicianInfo
           ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
@@ -435,151 +618,236 @@ export default function AdminDashboard() {
     setNewCode(code);
   };
 
-  const saveCode = (code: string) => {
+  const saveCode = async (codeToSave: string) => {
+    setIsUpdatingCode(true);
+    const formattedCode = codeToSave.padStart(4, "0").slice(0, 4);
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
 
-    const formattedCode = code.padStart(4, "0").slice(0, 4);
-
-    const codeData: DailyCode = {
+    const codeData: Omit<DailyCode, "createdAt" | "id"> & {
+      expiresAt: string;
+    } = {
       code: formattedCode,
       expiresAt: tomorrow.toISOString(),
-      createdAt: now.toISOString(),
-      createdBy: "admin",
+      createdBy: auth.currentUser?.email || "admin",
     };
 
-    localStorage.setItem("dailyCode", JSON.stringify(codeData));
-    setDailyCode(codeData);
+    const logAction = dailyCode ? "updated" : "generated";
 
-    const logEntry: CodeAuditLog = {
-      code: formattedCode,
-      action: newCode ? "updated" : "generated",
-      timestamp: now.toISOString(),
-      adminId: "admin",
-    };
+    try {
+      const saveResult = await saveDailyCode(codeData);
+      if (!saveResult.success) {
+        throw saveResult.error || new Error("Failed to save daily code");
+      }
 
-    const updatedLog = [logEntry, ...auditLog].slice(0, 100);
-    localStorage.setItem("codeAuditLog", JSON.stringify(updatedLog));
-    setAuditLog(updatedLog);
+      const logEntry = {
+        code: formattedCode,
+        action: logAction as "created" | "updated" | "generated",
+        adminId: auth.currentUser?.email || "admin",
+      };
+      const logResult = await saveCodeAuditLogEntry(logEntry);
+      if (!logResult.success) {
+        console.error("Failed to save code audit log:", logResult.error);
+        toast.warning("Daily code updated, but failed to log action.");
+      } else {
+        toast.success(`Daily code ${logAction} successfully`);
+      }
 
-    setNewCode("");
-    toast.success("Daily code updated successfully");
+      await loadDashboardData();
+      setNewCode("");
+    } catch (error) {
+      console.error(`Error ${logAction} daily code:`, error);
+      toast.error(`Failed to ${logAction} daily code. Please try again.`);
+    } finally {
+      setIsUpdatingCode(false);
+    }
   };
 
-  const handleVolunteerSignOut = (sessionIndex: number) => {
+  const handleVolunteerSignOut = async (sessionIndex: number) => {
     const sessionToSignOut = activeVolunteers[sessionIndex];
-    if (!sessionToSignOut) return;
+    if (!sessionToSignOut || !sessionToSignOut.id) {
+      toast.error("Invalid session data. Cannot sign out.");
+      return;
+    }
+
+    setIsSigningOutVolunteer(sessionToSignOut.id);
 
     const checkOutTime = new Date();
     const checkInTime = new Date(sessionToSignOut.checkInTime);
     const durationMs = checkOutTime.getTime() - checkInTime.getTime();
     const hoursWorked = (durationMs / (1000 * 60 * 60)).toFixed(2);
 
-    const completedSession: VolunteerSession = {
+    const completedSessionData: Partial<VolunteerSession> = {
       ...sessionToSignOut,
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked: hoursWorked,
+      checkInTimeTimestamp: undefined,
+      checkOutTimeTimestamp: undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
     };
+    delete completedSessionData.checkInTimeTimestamp;
+    delete completedSessionData.checkOutTimeTimestamp;
+    delete completedSessionData.createdAt;
+    delete completedSessionData.updatedAt;
 
-    const updatedActiveVolunteers = activeVolunteers.filter(
-      (_, index) => index !== sessionIndex
-    );
-    const updatedCompletedSessions = [...completedSessions, completedSession];
-
-    setActiveVolunteers(updatedActiveVolunteers);
-    setCompletedSessions(updatedCompletedSessions);
-
-    localStorage.setItem(
-      "activeVolunteers",
-      JSON.stringify(updatedActiveVolunteers)
-    );
-    localStorage.setItem(
-      "completedSessions",
-      JSON.stringify(updatedCompletedSessions)
-    );
-
-    toast.success(
-      `${
-        sessionToSignOut.volunteerInfo?.firstName || "Volunteer"
-      } signed out successfully.`
-    );
-  };
-
-  const handleMusicianSignOut = (sessionIndex: number) => {
-    const sessionToSignOut = activeMusicians[sessionIndex];
-    if (!sessionToSignOut) return;
-
-    const allSignIns: MusicianSession[] = JSON.parse(
-      localStorage.getItem("musicianSignIns") || "[]"
-    );
-
-    const updatedSignIns = allSignIns.map((session) => {
-      if (
-        session.musicianId === sessionToSignOut.musicianId &&
-        session.signInTime === sessionToSignOut.signInTime
-      ) {
-        return {
-          ...session,
-          checkOutTime: new Date().toISOString(),
-        };
+    try {
+      const result = await completeVolunteerSession(
+        sessionToSignOut.id,
+        completedSessionData
+      );
+      if (result.success) {
+        toast.success(
+          `${
+            sessionToSignOut.volunteerInfo?.firstName || "Volunteer"
+          } signed out successfully.`
+        );
+        await loadDashboardData();
+      } else {
+        throw result.error || new Error("Firestore operation failed");
       }
-      return session;
-    });
-
-    localStorage.setItem("musicianSignIns", JSON.stringify(updatedSignIns));
-
-    const musicianInfo = registeredMusicians.find(
-      (m) => m.id === sessionToSignOut.musicianId
-    );
-    const musicianName = musicianInfo
-      ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
-      : "Musician";
-
-    toast.success(`${musicianName} signed out successfully.`);
-
-    loadDashboardData();
+    } catch (error) {
+      console.error("Error signing out volunteer:", error);
+      toast.error("Failed to sign out volunteer. Please try again.");
+    } finally {
+      setIsSigningOutVolunteer(null);
+    }
   };
+
+  const handleMusicianSignOut = async (sessionIndex: number) => {
+    const sessionToSignOut = activeMusicians[sessionIndex];
+    if (!sessionToSignOut || !sessionToSignOut.id) {
+      toast.error("Invalid musician session data. Cannot sign out.");
+      return;
+    }
+
+    setIsSigningOutMusician(sessionToSignOut.id);
+
+    const checkOutTime = new Date().toISOString();
+
+    const completedSessionData: Partial<MusicianSession> = {
+      ...sessionToSignOut,
+      checkOutTime: checkOutTime,
+      signInTimeTimestamp: undefined,
+      checkOutTimeTimestamp: undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+    delete completedSessionData.signInTimeTimestamp;
+    delete completedSessionData.checkOutTimeTimestamp;
+    delete completedSessionData.createdAt;
+    delete completedSessionData.updatedAt;
+    delete completedSessionData.musicianInfo;
+
+    try {
+      const result = await completeMusicianSession(
+        sessionToSignOut.id,
+        completedSessionData
+      );
+
+      if (result.success) {
+        const musicianName = sessionToSignOut.musicianInfo
+          ? `${sessionToSignOut.musicianInfo.firstName} ${sessionToSignOut.musicianInfo.lastName}`
+          : "Musician";
+        toast.success(`${musicianName} signed out successfully.`);
+        await loadDashboardData();
+      } else {
+        throw result.error || new Error("Firestore operation failed");
+      }
+    } catch (error) {
+      console.error("Error signing out musician:", error);
+      toast.error("Failed to sign out musician. Please try again.");
+    } finally {
+      setIsSigningOutMusician(null);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast.success("Signed out successfully");
+      router.push("/admin/login");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast.error("Sign out failed. Please try again.");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <Loader2 className="h-8 w-8 animate-spin text-red-700" />
+        <span className="ml-2 text-lg">Loading Dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
           <Button
-            onClick={exportRegisteredVolunteers}
+            onClick={loadDashboardData}
             variant="outline"
             size="sm"
+            disabled={isRefreshing}
             className="w-full sm:w-auto justify-center"
           >
-            <Users className="mr-1 h-3 w-3" /> Export Registered Volunteers
+            {isRefreshing ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-1 h-3 w-3" />
+            )}
+            Refresh Data
           </Button>
           <Button
-            onClick={exportCompletedVolunteerSessions}
-            variant="outline"
+            onClick={handleSignOut}
+            variant="destructive"
             size="sm"
-            className="w-full sm:w-auto justify-center"
+            className="w-full sm:w-auto justify-center bg-red-700 hover:bg-red-800"
           >
-            <Clock className="mr-1 h-3 w-3" /> Export Completed Sessions
-          </Button>
-          <Button
-            onClick={exportRegisteredMusicians}
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto justify-center"
-          >
-            <Music className="mr-1 h-3 w-3" /> Export Registered Musicians
-          </Button>
-          <Button
-            onClick={exportCompletedMusicianSessions}
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto justify-center"
-          >
-            <History className="mr-1 h-3 w-3" /> Export Musician Sessions
+            <LogOut className="mr-1 h-3 w-3" />
+            Sign Out
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full">
+        <Button
+          onClick={exportRegisteredVolunteers}
+          variant="outline"
+          size="sm"
+          className="flex-1 min-w-[180px] justify-center"
+        >
+          <Users className="mr-1 h-3 w-3" /> Export Registered Volunteers
+        </Button>
+        <Button
+          onClick={exportCompletedVolunteerSessions}
+          variant="outline"
+          size="sm"
+          className="flex-1 min-w-[180px] justify-center"
+        >
+          <Clock className="mr-1 h-3 w-3" /> Export Completed Sessions
+        </Button>
+        <Button
+          onClick={exportRegisteredMusicians}
+          variant="outline"
+          size="sm"
+          className="flex-1 min-w-[180px] justify-center"
+        >
+          <Music className="mr-1 h-3 w-3" /> Export Registered Musicians
+        </Button>
+        <Button
+          onClick={exportCompletedMusicianSessions}
+          variant="outline"
+          size="sm"
+          className="flex-1 min-w-[180px] justify-center"
+        >
+          <History className="mr-1 h-3 w-3" /> Export Musician Sessions
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-6">
@@ -602,7 +870,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalVolunteers}</div>
-            <p className="text-xs text-muted-foreground">Unique volunteers</p>
+            <p className="text-xs text-muted-foreground">Unique sessions</p>
           </CardContent>
         </Card>
         <Card>
@@ -614,7 +882,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalMusicians}</div>
-            <p className="text-xs text-muted-foreground">Unique musicians</p>
+            <p className="text-xs text-muted-foreground">Unique sessions</p>
           </CardContent>
         </Card>
         <Card>
@@ -670,13 +938,14 @@ export default function AdminDashboard() {
                 ? `Valid until ${new Date(
                     dailyCode.expiresAt
                   ).toLocaleString()}`
-                : "No active code"}
+                : "No active code set in Firestore"}
             </p>
           </div>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setShowCode(!showCode)}
+            disabled={!dailyCode}
           >
             {showCode ? (
               <EyeOff className="h-4 w-4" />
@@ -692,11 +961,12 @@ export default function AdminDashboard() {
                 <Input
                   type="text"
                   maxLength={4}
-                  placeholder="Enter 4-digit code"
+                  placeholder="Enter/Generate 4-digit code"
                   value={newCode}
                   onChange={(e) =>
                     setNewCode(e.target.value.replace(/\D/g, "").slice(0, 4))
                   }
+                  disabled={isUpdatingCode}
                 />
               </div>
               <Button
@@ -704,6 +974,7 @@ export default function AdminDashboard() {
                 size="icon"
                 onClick={generateCode}
                 title="Generate random code"
+                disabled={isUpdatingCode}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -711,22 +982,54 @@ export default function AdminDashboard() {
                 onClick={() =>
                   saveCode(
                     newCode ||
+                      dailyCode?.code ||
                       Math.floor(1000 + Math.random() * 9000).toString()
                   )
                 }
-                className="bg-red-700 hover:bg-red-800"
-                disabled={newCode.length > 0 && newCode.length < 4}
+                className="bg-red-700 hover:bg-red-800 min-w-[110px]"
+                disabled={
+                  isUpdatingCode || (newCode.length > 0 && newCode.length < 4)
+                }
               >
-                {dailyCode ? "Update Code" : "Set Code"}
+                {isUpdatingCode ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : dailyCode ? (
+                  "Update Code"
+                ) : (
+                  "Set Code"
+                )}
               </Button>
             </div>
 
             {dailyCode && (
               <div className="p-4 bg-gray-50 rounded-md">
-                <p className="text-sm font-medium">Current Code:</p>
+                <p className="text-sm font-medium">Current Active Code:</p>
                 <p className="text-2xl font-bold font-mono">
                   {showCode ? dailyCode.code : "••••"}
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Set by: {dailyCode.createdBy} on{" "}
+                  {formatDate(dailyCode.createdAt)}
+                </p>
+              </div>
+            )}
+
+            {auditLog.length > 0 && (
+              <div className="pt-4 border-t">
+                <h4 className="text-md font-semibold mb-2">
+                  Code Change History (Last {auditLog.length})
+                </h4>
+                <div className="max-h-40 overflow-y-auto text-sm space-y-1 text-muted-foreground pr-2">
+                  {auditLog.map((log) => (
+                    <p key={log.id}>
+                      <span className="font-mono bg-gray-100 px-1 rounded">
+                        {log.code}
+                      </span>{" "}
+                      {log.action} by {log.adminId} at{" "}
+                      {formatTime(log.timestamp)}
+                    </p>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -790,14 +1093,8 @@ export default function AdminDashboard() {
                 </TableHeader>
                 <TableBody>
                   {activeVolunteers.map((volunteer, index) => (
-                    <TableRow
-                      key={`${volunteer.identifier}-${volunteer.checkInTime}`}
-                    >
-                      <TableCell>
-                        {volunteer.volunteerInfo
-                          ? `${volunteer.volunteerInfo.firstName} ${volunteer.volunteerInfo.lastName}`
-                          : volunteer.identifier}
-                      </TableCell>
+                    <TableRow key={volunteer.id}>
+                      <TableCell>{volunteer.identifier}</TableCell>
                       <TableCell>
                         {volunteer.volunteerInfo
                           ? getVolunteerType(volunteer.volunteerInfo.id)
@@ -811,21 +1108,27 @@ export default function AdminDashboard() {
                       <TableCell>{volunteer.location || "N/A"}</TableCell>
                       <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
                       <TableCell>
-                        {Math.round(
-                          (new Date().getTime() -
-                            new Date(volunteer.checkInTime).getTime()) /
-                            60000
-                        )}{" "}
-                        min
+                        {volunteer.checkInTime
+                          ? `${Math.round(
+                              (new Date().getTime() -
+                                new Date(volunteer.checkInTime).getTime()) /
+                                60000
+                            )} min`
+                          : "N/A"}
                       </TableCell>
                       <TableCell>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleVolunteerSignOut(index)}
-                          className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                          className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700 min-w-[90px]"
+                          disabled={isSigningOutVolunteer === volunteer.id}
                         >
-                          <LogOut className="mr-1 h-3 w-3" />
+                          {isSigningOutVolunteer === volunteer.id ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <LogOut className="mr-1 h-3 w-3" />
+                          )}
                           Sign Out
                         </Button>
                       </TableCell>
@@ -836,7 +1139,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
-              No active volunteers at this time
+              No active volunteers found in Firestore
             </div>
           )}
         </TabsContent>
@@ -860,13 +1163,9 @@ export default function AdminDashboard() {
                 </TableHeader>
                 <TableBody>
                   {activeMusicians.map((musicianSession, index) => {
-                    const musicianInfo = registeredMusicians.find(
-                      (m) => m.id === musicianSession.musicianId
-                    );
+                    const musicianInfo = musicianSession.musicianInfo;
                     return (
-                      <TableRow
-                        key={`${musicianSession.musicianId}-${musicianSession.signInTime}`}
-                      >
+                      <TableRow key={musicianSession.id}>
                         <TableCell>
                           {musicianInfo
                             ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
@@ -889,21 +1188,31 @@ export default function AdminDashboard() {
                           {formatTime(musicianSession.signInTime)}
                         </TableCell>
                         <TableCell>
-                          {Math.round(
-                            (new Date().getTime() -
-                              new Date(musicianSession.signInTime).getTime()) /
-                              60000
-                          )}{" "}
-                          min
+                          {musicianSession.signInTime
+                            ? `${Math.round(
+                                (new Date().getTime() -
+                                  new Date(
+                                    musicianSession.signInTime
+                                  ).getTime()) /
+                                  60000
+                              )} min`
+                            : "N/A"}
                         </TableCell>
                         <TableCell>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleMusicianSignOut(index)}
-                            className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700"
+                            className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700 min-w-[90px]"
+                            disabled={
+                              isSigningOutMusician === musicianSession.id
+                            }
                           >
-                            <LogOut className="mr-1 h-3 w-3" />
+                            {isSigningOutMusician === musicianSession.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : (
+                              <LogOut className="mr-1 h-3 w-3" />
+                            )}
                             Sign Out
                           </Button>
                         </TableCell>
@@ -915,7 +1224,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
-              No active musicians at this time
+              No active musicians found in Firestore
             </div>
           )}
         </TabsContent>
@@ -936,13 +1245,9 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {completedSessions.map((session, index) => (
-                    <TableRow key={index}>
-                      <TableCell>
-                        {session.volunteerInfo
-                          ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
-                          : session.identifier}
-                      </TableCell>
+                  {completedSessions.map((session) => (
+                    <TableRow key={session.id}>
+                      <TableCell>{session.identifier}</TableCell>
                       <TableCell>
                         {session.volunteerInfo
                           ? getVolunteerType(session.volunteerInfo.id)
@@ -955,7 +1260,7 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>{session.location || "N/A"}</TableCell>
                       <TableCell>{formatDate(session.checkInTime)}</TableCell>
-                      <TableCell>{session.hoursWorked}</TableCell>
+                      <TableCell>{session.hoursWorked || "N/A"}</TableCell>
                       <TableCell>
                         {session.rating ? `${session.rating}/5` : "N/A"}
                       </TableCell>
@@ -966,7 +1271,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
-              No completed sessions yet
+              No completed volunteer sessions found in Firestore
             </div>
           )}
         </TabsContent>
@@ -984,16 +1289,22 @@ export default function AdminDashboard() {
                     <TableHead>Instrument</TableHead>
                     <TableHead>Activity</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Duration</TableHead>
+                    <TableHead>Duration (min)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {completedMusicianSessions.map((session, index) => {
-                    const musicianInfo = registeredMusicians.find(
-                      (m) => m.id === session.musicianId
-                    );
+                  {completedMusicianSessions.map((session) => {
+                    const musicianInfo = session.musicianInfo;
+                    const duration =
+                      session.checkOutTime && session.signInTime
+                        ? Math.round(
+                            (new Date(session.checkOutTime).getTime() -
+                              new Date(session.signInTime).getTime()) /
+                              60000
+                          )
+                        : null;
                     return (
-                      <TableRow key={index}>
+                      <TableRow key={session.id}>
                         <TableCell>
                           {musicianInfo
                             ? `${musicianInfo.firstName} ${musicianInfo.lastName}`
@@ -1013,14 +1324,7 @@ export default function AdminDashboard() {
                         </TableCell>
                         <TableCell>{formatDate(session.signInTime)}</TableCell>
                         <TableCell>
-                          {Math.round(
-                            (new Date(session.signInTime).getTime() -
-                              new Date(
-                                session.checkOutTime || new Date()
-                              ).getTime()) /
-                              60000
-                          )}{" "}
-                          min
+                          {duration !== null ? duration : "N/A"}
                         </TableCell>
                       </TableRow>
                     );
@@ -1030,7 +1334,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
-              No completed musician sessions yet
+              No completed musician sessions found in Firestore
             </div>
           )}
         </TabsContent>
@@ -1062,13 +1366,13 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredVolunteers.map((volunteer, index) => (
-                    <TableRow key={index}>
+                  {filteredVolunteers.map((volunteer) => (
+                    <TableRow key={volunteer.id}>
                       <TableCell>
                         {volunteer.firstName} {volunteer.lastName}
                       </TableCell>
                       <TableCell>
-                        <div>{volunteer.email}</div>
+                        <div>{volunteer.email || "-"}</div>
                         <div>{volunteer.phone}</div>
                       </TableCell>
                       <TableCell>
@@ -1092,8 +1396,8 @@ export default function AdminDashboard() {
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
               {searchTerm
-                ? "No volunteers match your search"
-                : "No registered volunteers yet"}
+                ? "No volunteers match your search in Firestore"
+                : "No registered volunteers found in Firestore"}
             </div>
           )}
         </TabsContent>
@@ -1102,16 +1406,6 @@ export default function AdminDashboard() {
           value="registered-musicians"
           className="border rounded-md p-0 md:p-4"
         >
-          <div className="mb-4 flex items-center">
-            <Search className="mr-2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search musicians..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
-
           {registeredMusicians.length > 0 ? (
             <div className="overflow-x-auto">
               <Table className="min-w-[700px]">
@@ -1124,13 +1418,13 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {registeredMusicians.map((musician, index) => (
-                    <TableRow key={index}>
+                  {registeredMusicians.map((musician) => (
+                    <TableRow key={musician.id}>
                       <TableCell>
                         {musician.firstName} {musician.lastName}
                       </TableCell>
                       <TableCell>
-                        <div>{musician.email}</div>
+                        <div>{musician.email || "-"}</div>
                         <div>{musician.phone}</div>
                       </TableCell>
                       <TableCell>
@@ -1149,7 +1443,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground p-4">
-              No registered musicians yet
+              No registered musicians found in Firestore
             </div>
           )}
         </TabsContent>

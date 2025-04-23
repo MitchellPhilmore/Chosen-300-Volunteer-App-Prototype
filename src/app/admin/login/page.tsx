@@ -6,6 +6,11 @@ import Link from "next/link";
 import { Lock, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import {
+  auth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+} from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,30 +25,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function AdminLoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (localStorage.getItem("isAdminLoggedIn") === "true") {
-      router.replace("/admin");
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log("User already logged in, redirecting...");
+        router.replace("/admin");
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, [router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === "admin" && password === "password") {
-      localStorage.setItem("isAdminLoggedIn", "true");
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       toast.success("Login successful");
-      router.push("/admin"); // Redirect to admin dashboard on success
-    } else {
+    } catch (error: any) {
+      console.error("Firebase Login Error:", error);
+      let errorMessage = "Login failed. Please check your credentials.";
+      if (error.code === "auth/invalid-email") {
+        errorMessage = "Invalid email format.";
+      } else if (error.code === "auth/user-not-found") {
+        errorMessage = "No user found with this email.";
+      } else if (error.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password.";
+      } else if (error.code === "auth/invalid-credential") {
+        errorMessage = "Invalid credentials provided.";
+      }
+
       toast.error("Login failed", {
-        description: "Invalid username or password",
+        description: errorMessage,
       });
-      setPassword(""); // Clear password field on failure
+      setPassword("");
+    } finally {
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          setLoading(false);
+        }
+      });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="container w-full h-screen mx-auto flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="container w-full h-full mx-auto flex items-center justify-center py-12 px-4">
@@ -73,17 +111,19 @@ export default function AdminLoginPage() {
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-6">
               <div className="space-y-3">
-                <Label htmlFor="username" className="text-base">
-                  Username
+                <Label htmlFor="email" className="text-base">
+                  Email
                 </Label>
                 <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                   required
-                  placeholder="admin"
+                  placeholder="admin@example.com"
                   className="h-12 text-base"
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-3">
@@ -99,6 +139,7 @@ export default function AdminLoginPage() {
                   required
                   placeholder="••••••••"
                   className="h-12 text-base"
+                  disabled={loading}
                 />
               </div>
             </CardContent>
@@ -106,8 +147,9 @@ export default function AdminLoginPage() {
               <Button
                 type="submit"
                 className="w-full h-12 text-base bg-red-700 hover:bg-red-800"
+                disabled={loading}
               >
-                Login
+                {loading ? "Logging in..." : "Login"}
               </Button>
             </CardFooter>
           </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import {
+  getVolunteerById,
+  saveActiveMusicianSession,
+  getActiveVolunteerSession,
+  getCompletedVolunteerSessions,
+  saveActiveVolunteerSession,
+  completeVolunteerSession,
+  saveVolunteer,
+  getDailyCode,
+} from "@/lib/firebase";
+import { Timestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +34,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Dialog,
@@ -45,6 +57,7 @@ interface Volunteer {
   phone: string;
   volunteerType?: "regular" | "communityService";
   serviceReason?: string;
+  serviceReasonOther?: string;
   serviceInstitution?: string;
   address?: string;
   city?: string;
@@ -56,6 +69,7 @@ interface Volunteer {
 }
 
 interface VolunteerSession {
+  id: string;
   identifier: string;
   program: string;
   checkInTime: string;
@@ -67,10 +81,13 @@ interface VolunteerSession {
     firstName: string;
     lastName: string;
   };
-  adminCode: string;
   rating?: number;
   comments?: string;
   isCommunityServiceSession?: boolean;
+  checkInTimeTimestamp?: Timestamp;
+  checkOutTimeTimestamp?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export default function VolunteerDashboard() {
@@ -101,49 +118,75 @@ export default function VolunteerDashboard() {
     issues: "",
     hadFun: false,
   });
+  const [error, setError] = useState<string | null>(null);
+  const [completedSessions, setCompletedSessions] = useState<
+    VolunteerSession[]
+  >([]);
 
   useEffect(() => {
-    // Only run on client side
-    if (typeof window === "undefined") return;
+    async function loadVolunteer() {
+      setLoading(true);
+      try {
+        // First try to get volunteer from Firestore
+        const result = await getVolunteerById(id as string);
 
-    // Fetch volunteer data
-    const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
-    const foundVolunteer = volunteers.find((v: Volunteer) => v.id === id);
+        if (result.success && result.data) {
+          setVolunteer(result.data as Volunteer);
+        } else {
+          // Fall back to localStorage if Firestore fails
+          const localVolunteers = JSON.parse(
+            localStorage.getItem("volunteers") || "[]"
+          );
+          const localVolunteer = localVolunteers.find((v: any) => v.id === id);
 
-    if (foundVolunteer) {
-      setVolunteer(foundVolunteer);
+          if (localVolunteer) {
+            setVolunteer(localVolunteer);
+          } else {
+            setError("Volunteer not found");
+          }
+        }
 
-      // Check if volunteer has an active session
-      const activeVolunteers = JSON.parse(
-        localStorage.getItem("activeVolunteers") || "[]"
-      );
-      const currentSession = activeVolunteers.find(
-        (s: VolunteerSession) => s.volunteerInfo && s.volunteerInfo.id === id
-      );
+        // Load active session if it exists
+        const activeSessionResult = await getActiveVolunteerSession(id);
+        if (activeSessionResult.success && activeSessionResult.data) {
+          const sessionData = {
+            ...activeSessionResult.data,
+            sessionId: activeSessionResult.sessionId,
+          } as VolunteerSession;
+          setActiveSession(sessionData);
+        }
 
-      if (currentSession) {
-        setActiveSession(currentSession);
+        // Load completed sessions
+        const completedSessionsResult = await getCompletedVolunteerSessions(id);
+        if (completedSessionsResult.success && completedSessionsResult.data) {
+          setVolunteerHistory(
+            completedSessionsResult.data as VolunteerSession[]
+          );
+        } else {
+          // Fall back to localStorage for completed sessions
+          const localSessions = JSON.parse(
+            localStorage.getItem("completedSessions") || "[]"
+          );
+          const volunteerSessions = localSessions.filter(
+            (s: VolunteerSession) =>
+              s.volunteerInfo && s.volunteerInfo.id === id
+          );
+          setVolunteerHistory(volunteerSessions);
+        }
+      } catch (err) {
+        console.error("Error loading volunteer data:", err);
+        setError("Failed to load volunteer data");
+      } finally {
+        setLoading(false);
       }
-
-      // Get volunteer history
-      const completedSessions = JSON.parse(
-        localStorage.getItem("completedSessions") || "[]"
-      );
-      const history = completedSessions.filter(
-        (s: VolunteerSession) => s.volunteerInfo && s.volunteerInfo.id === id
-      );
-
-      setVolunteerHistory(history);
-    } else {
-      // Volunteer not found, redirect to home
-      toast.error("Volunteer not found");
-      router.push("/");
     }
 
-    setLoading(false);
-  }, [id, router]);
+    if (id) {
+      loadVolunteer();
+    }
+  }, [id]);
 
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
     if (!volunteer) return;
     if (!adminCode) {
       toast.error("Please enter the admin code");
@@ -172,75 +215,64 @@ export default function VolunteerDashboard() {
       }
     }
 
-    // Validate admin code
-    const savedCode = localStorage.getItem("dailyCode");
-    if (!savedCode) {
-      toast.error("No active check-in code", {
-        description: "Please check with your coordinator.",
-      });
-      setAdminCode(""); // Clear the input
-      return;
-    }
-
-    const activeCode = JSON.parse(savedCode);
-
-    // Check if code has expired
-    if (new Date(activeCode.expiresAt) <= new Date()) {
-      toast.error("Check-in code has expired", {
-        description: "Please check with your coordinator for today's code.",
-      });
-      setAdminCode(""); // Clear the input
-      return;
-    }
-
-    // Ensure both codes are padded to 4 digits for comparison
-    const submittedCode = adminCode.padStart(4, "0");
-    const storedCode = activeCode.code.padStart(4, "0");
-
-    if (submittedCode !== storedCode) {
-      toast.error("Invalid check-in code", {
-        description: "Please check with your coordinator for the correct code.",
-      });
-      setAdminCode(""); // Clear the input
-      return;
-    }
-
+    // --- Begin Daily Code Validation --- //
     setIsCheckingIn(true);
 
-    // Potentially update the main volunteer record first if upgrading to CS
-    let updatedVolunteerData = { ...volunteer }; // Start with current data
-    if (isCsSession && volunteer.volunteerType !== "communityService") {
-      try {
-        const allVolunteers = JSON.parse(
-          localStorage.getItem("volunteers") || "[]"
-        );
-        const updatedVolunteers = allVolunteers.map((v: Volunteer) => {
-          if (v.id === volunteer.id) {
-            updatedVolunteerData = {
-              ...v,
-              volunteerType: "communityService",
-              serviceReason: csReason,
-              serviceInstitution: csInstitution,
-            };
-            return updatedVolunteerData;
-          }
-          return v;
-        });
-        localStorage.setItem("volunteers", JSON.stringify(updatedVolunteers));
-        // Update state immediately
-        setVolunteer(updatedVolunteerData);
-        toast.info("Volunteer profile updated to Community Service.");
-      } catch (error) {
-        console.error("Error updating volunteer profile:", error);
-        toast.error("Could not update volunteer profile. Please try again.");
-        setIsCheckingIn(false);
-        return; // Stop check-in if profile update fails
-      }
-    }
+    try {
+      const dailyCodeResult = await getDailyCode();
 
-    // Create check-in record
-    setTimeout(() => {
-      const checkInData: VolunteerSession = {
+      // Type guard to ensure data exists and has the code property
+      if (!dailyCodeResult.success || !dailyCodeResult.data?.code) {
+        toast.error("Invalid or Expired Code", {
+          description:
+            dailyCodeResult.message ||
+            "Could not verify check-in code. Please check with your coordinator.",
+        });
+        setAdminCode("");
+        setIsCheckingIn(false);
+        return;
+      }
+
+      const submittedCode = adminCode.padStart(4, "0");
+      const storedCode = dailyCodeResult.data.code.padStart(4, "0");
+
+      if (submittedCode !== storedCode) {
+        toast.error("Invalid check-in code", {
+          description:
+            "Please check with your coordinator for the correct code.",
+        });
+        setAdminCode("");
+        setIsCheckingIn(false);
+        return;
+      }
+
+      // --- Code is valid, proceed with check-in logic --- //
+
+      let updatedVolunteerData = { ...volunteer };
+      if (isCsSession && volunteer.volunteerType !== "communityService") {
+        try {
+          updatedVolunteerData = {
+            ...volunteer,
+            volunteerType: "communityService",
+            serviceReason: csReason,
+            serviceInstitution: csInstitution,
+          };
+          const updateResult = await saveVolunteer(updatedVolunteerData);
+          if (!updateResult.success) {
+            throw updateResult.error || new Error("Failed to update profile");
+          }
+          setVolunteer(updatedVolunteerData);
+          toast.info("Volunteer profile updated to Community Service.");
+        } catch (error) {
+          console.error("Error updating volunteer profile:", error);
+          toast.error("Could not update volunteer profile. Please try again.");
+          setIsCheckingIn(false);
+          return;
+        }
+      }
+
+      // Create check-in record (without id)
+      const checkInData: Omit<VolunteerSession, "id"> = {
         identifier: updatedVolunteerData.email || updatedVolunteerData.phone,
         program: selectedProgram,
         location: selectedLocation,
@@ -250,37 +282,45 @@ export default function VolunteerDashboard() {
           firstName: updatedVolunteerData.firstName,
           lastName: updatedVolunteerData.lastName,
         },
-        adminCode: submittedCode,
-        isCommunityServiceSession: isCsSession, // Always set based on checkbox now
+        isCommunityServiceSession: isCsSession,
       };
 
-      // Store in localStorage
-      const activeVolunteers = JSON.parse(
-        localStorage.getItem("activeVolunteers") || "[]"
-      );
-      activeVolunteers.push(checkInData);
-      localStorage.setItem(
-        "activeVolunteers",
-        JSON.stringify(activeVolunteers)
-      );
+      const result = await saveActiveVolunteerSession(checkInData);
 
-      setActiveSession(checkInData);
+      if (result.success && result.sessionId) {
+        // Construct the full session object for local state
+        const newActiveSession: VolunteerSession = {
+          ...checkInData,
+          id: result.sessionId,
+        };
+        setActiveSession(newActiveSession);
+
+        toast.success("Check-in successful!", {
+          description: `You've checked in to ${selectedProgram
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (l: string) =>
+              l.toUpperCase()
+            )} at ${new Date().toLocaleTimeString()}`,
+        });
+      } else {
+        throw result.error || new Error("Failed to save active session");
+      }
+    } catch (error) {
+      console.error("Error during check-in:", error);
+      toast.error("Check-in failed", {
+        description:
+          (error instanceof Error ? error.message : "Please try again") +
+          " or contact support.",
+      });
+    } finally {
       setIsCheckingIn(false);
       setAdminCode("");
       setSelectedProgram("");
       setSelectedLocation("");
       setIsCsSession(false);
-      setCsReason(""); // Reset temporary CS fields
-      setCsInstitution(""); // Reset temporary CS fields
-
-      toast.success("Check-in successful!", {
-        description: `You've checked in to ${selectedProgram
-          .replace(/-/g, " ")
-          .replace(/\b\w/g, (l: string) =>
-            l.toUpperCase()
-          )} at ${new Date().toLocaleTimeString()}`,
-      });
-    }, 1500); // Keep timeout for simulating network request
+      setCsReason("");
+      setCsInstitution("");
+    }
   };
 
   const handleCheckOut = () => {
@@ -288,10 +328,9 @@ export default function VolunteerDashboard() {
     setShowRatingDialog(true);
   };
 
-  const handleRatingSubmit = () => {
-    if (!activeSession || !volunteer) return;
+  const handleRatingSubmit = async () => {
+    if (!activeSession || !volunteer || !activeSession.id) return;
 
-    // Calculate hours
     const checkInTime = new Date(activeSession.checkInTime);
     const checkOutTime = new Date();
     const hoursWorked = (
@@ -299,9 +338,14 @@ export default function VolunteerDashboard() {
       3600000
     ).toFixed(2);
 
-    // Create completed session record
-    const completedSession: VolunteerSession = {
-      ...activeSession,
+    // Prepare the completed session data, excluding the id initially
+    const completedSessionData: Omit<VolunteerSession, "id"> = {
+      identifier: activeSession.identifier,
+      program: activeSession.program,
+      location: activeSession.location,
+      checkInTime: activeSession.checkInTime,
+      volunteerInfo: activeSession.volunteerInfo,
+      isCommunityServiceSession: activeSession.isCommunityServiceSession,
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked,
       rating,
@@ -309,37 +353,88 @@ export default function VolunteerDashboard() {
         comments.highlights || comments.feedback || comments.issues
           ? JSON.stringify(comments)
           : undefined,
+      checkInTimeTimestamp: undefined,
+      checkOutTimeTimestamp: undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
     };
+    // Ensure undefined fields are removed if the base activeSession included them
+    delete completedSessionData.checkInTimeTimestamp;
+    delete completedSessionData.checkOutTimeTimestamp;
+    delete completedSessionData.createdAt;
+    delete completedSessionData.updatedAt;
 
-    // Update localStorage
-    const completedSessions = JSON.parse(
-      localStorage.getItem("completedSessions") || "[]"
-    );
-    completedSessions.push(completedSession);
-    localStorage.setItem(
-      "completedSessions",
-      JSON.stringify(completedSessions)
-    );
+    try {
+      // Use the correct session ID from the active session state
+      const sessionId = activeSession.id;
+      // Call completeVolunteerSession with ID and the data payload
+      const result = await completeVolunteerSession(
+        sessionId,
+        completedSessionData
+      );
 
-    // Remove from active volunteers
-    const activeVolunteers = JSON.parse(
-      localStorage.getItem("activeVolunteers") || "[]"
-    );
-    const updatedActive = activeVolunteers.filter(
-      (s: VolunteerSession) =>
-        !(s.volunteerInfo && s.volunteerInfo.id === volunteer.id)
-    );
-    localStorage.setItem("activeVolunteers", JSON.stringify(updatedActive));
+      if (result.success) {
+        setActiveSession(null);
+        setRating(0);
+        setComments({ highlights: "", feedback: "", issues: "" });
+        setShowRatingDialog(false);
+        loadCompletedSessions();
 
-    setActiveSession(null);
-    setVolunteerHistory([completedSession, ...volunteerHistory]);
-    setShowRatingDialog(false);
-    setRating(0);
-
-    toast.success("Check-out successful!", {
-      description: `Thank you for volunteering! You contributed ${hoursWorked} hours.`,
-    });
+        toast.success("Check-out successful!", {
+          description: `You worked ${hoursWorked} hours. Thank you for your time!`,
+        });
+      } else {
+        throw result.error || new Error("Firestore operation failed");
+      }
+    } catch (error) {
+      console.error("Error during check-out:", error);
+      toast.error("Check-out failed", {
+        description: "Please try again or contact support.",
+      });
+    } finally {
+      setShowRatingDialog(false);
+    }
   };
+
+  // Load completed sessions on mount and after check-out
+  const loadCompletedSessions = useCallback(async () => {
+    if (!volunteer) return;
+    const result = await getCompletedVolunteerSessions(volunteer.id);
+    if (result.success && result.data) {
+      setCompletedSessions(result.data);
+    } else {
+      setCompletedSessions([]);
+    }
+  }, [volunteer]);
+
+  useEffect(() => {
+    if (volunteer) {
+      loadCompletedSessions();
+    }
+  }, [volunteer, loadCompletedSessions]);
+
+  // Calculate total hours
+  const totalHours = useMemo(() => {
+    return completedSessions
+      .reduce((sum, session) => sum + parseFloat(session.hoursWorked || "0"), 0)
+      .toFixed(2);
+  }, [completedSessions]);
+
+  const csHours = useMemo(() => {
+    return completedSessions
+      .filter((s) => s.isCommunityServiceSession)
+      .reduce((sum, session) => sum + parseFloat(session.hoursWorked || "0"), 0)
+      .toFixed(2);
+  }, [completedSessions]);
+
+  // Calculate Community Service Sessions Count
+  const csSessionsCount = volunteerHistory.filter(
+    (session) => session.isCommunityServiceSession
+  ).length;
+
+  // Determine if CS metrics should be shown
+  const showCsMetrics =
+    volunteer?.volunteerType === "communityService" || csSessionsCount > 0;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -352,44 +447,38 @@ export default function VolunteerDashboard() {
     });
   };
 
-  const calculateTotalHours = () => {
-    return volunteerHistory
-      .reduce((total, session) => {
-        return total + Number.parseFloat(session.hoursWorked || "0");
-      }, 0)
-      .toFixed(1);
-  };
-
-  // Calculate Community Service Hours
-  const calculateCsHours = () => {
-    return volunteerHistory
-      .filter((session) => session.isCommunityServiceSession)
-      .reduce((total, session) => {
-        return total + Number.parseFloat(session.hoursWorked || "0");
-      }, 0)
-      .toFixed(1);
-  };
-
-  // Calculate Community Service Sessions Count
-  const csSessionsCount = volunteerHistory.filter(
-    (session) => session.isCommunityServiceSession
-  ).length;
-
-  // Determine if CS metrics should be shown
-  const showCsMetrics =
-    volunteer?.volunteerType === "communityService" || csSessionsCount > 0;
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-red-700" />
+        <span className="ml-2">Loading volunteer data...</span>
       </div>
     );
   }
 
-  if (!volunteer) {
-    return null;
+  if (error || !volunteer) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card className="max-w-3xl mx-auto border-none shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-red-700">Error</CardTitle>
+            <CardDescription>{error || "Volunteer not found"}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>
+              Please check the URL or return to the registration page to sign
+              up.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
+
+  // Format the registration date
+  const registrationDate = new Date(
+    volunteer.registrationDate
+  ).toLocaleDateString();
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -434,7 +523,7 @@ export default function VolunteerDashboard() {
               <Clock className="h-4 w-4 text-red-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{calculateTotalHours()}</div>
+              <div className="text-2xl font-bold">{totalHours}</div>
               <p className="text-xs text-muted-foreground">
                 Total hours of service
               </p>
@@ -449,9 +538,7 @@ export default function VolunteerDashboard() {
               <Calendar className="h-4 w-4 text-red-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {formatDate(volunteer.registrationDate)}
-              </div>
+              <div className="text-2xl font-bold">{registrationDate}</div>
               <p className="text-xs text-muted-foreground">Registration date</p>
             </CardContent>
           </Card>
@@ -480,7 +567,7 @@ export default function VolunteerDashboard() {
                 <Briefcase className="h-4 w-4 text-blue-700" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{calculateCsHours()}</div>
+                <div className="text-2xl font-bold">{csHours}</div>
                 <p className="text-xs text-muted-foreground">
                   Community service hours
                 </p>
@@ -622,9 +709,7 @@ export default function VolunteerDashboard() {
                           </div>
 
                           <div className="grid gap-2">
-                            <Label htmlFor="location">
-                              Select Location 
-                            </Label>
+                            <Label htmlFor="location">Select Location</Label>
                             <select
                               id="location"
                               value={selectedLocation}
@@ -634,7 +719,9 @@ export default function VolunteerDashboard() {
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <option value="">Select a location</option>
-                              <option value="west philadelphia">West Philadelphia</option>
+                              <option value="west philadelphia">
+                                West Philadelphia
+                              </option>
                               <option value="spring garden">
                                 SpringGarden
                               </option>
@@ -756,13 +843,17 @@ export default function VolunteerDashboard() {
                   <>
                     <p className="text-sm">
                       <span className="font-medium">Service Reason:</span>{" "}
-                      {volunteer.serviceReason || "N/A"}
+                      {volunteer.serviceReason === "other"
+                        ? volunteer.serviceReasonOther
+                        : volunteer.serviceReason === "court-ordered"
+                        ? "Court ordered"
+                        : volunteer.serviceReason}
                     </p>
                     <p className="text-sm">
                       <span className="font-medium">
                         Assigning Institution:
                       </span>{" "}
-                      {volunteer.serviceInstitution || "N/A"}
+                      {volunteer.serviceInstitution}
                     </p>
                   </>
                 )}
