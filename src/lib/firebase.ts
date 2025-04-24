@@ -17,6 +17,7 @@ import {
   addDoc,
   serverTimestamp,
   updateDoc,
+  Firestore,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -39,7 +40,7 @@ const firebaseConfig = {
 // Initialize Firebase with validation
 let app;
 let analytics;
-let db;
+let db: Firestore;
 let auth;
 
 // Check that essential firebase config values exist

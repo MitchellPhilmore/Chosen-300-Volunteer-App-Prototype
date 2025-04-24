@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import { saveVolunteer } from "@/lib/firebase";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,12 +34,184 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// Define the Zod schema for form validation
+const emailSchema = z
+  .string()
+  .email("Please enter a valid email address")
+  .or(z.string().length(0));
+const phoneSchema = z
+  .string()
+  .min(10, "Phone number must be at least 10 digits")
+  .regex(/^\d+$/, "Phone number must contain only digits")
+  .or(z.string().length(0));
+
+// Comprehensive schema for the entire form
+const volunteerSchema = z
+  .object({
+    firstName: z.string().min(1, "First name is required"),
+    lastName: z.string().min(1, "Last name is required"),
+    email: emailSchema,
+    phone: phoneSchema,
+    volunteerType: z.string(),
+    serviceReason: z.string().optional(),
+    serviceReasonOther: z.string().optional(),
+    serviceInstitution: z.string().optional(),
+    site: z.string().min(1, "Please select a preferred site"),
+    waiverAccepted: z.literal(true, {
+      errorMap: () => ({ message: "You must accept the waiver to continue" }),
+    }),
+    waiverSignature: z.string().min(1, "You must sign the waiver to continue"),
+  })
+  .refine(
+    (data) => {
+      // At least email or phone must be provided
+      return data.email.length > 0 || data.phone.length > 0;
+    },
+    {
+      message: "Please provide either an email or phone number",
+      path: ["email"],
+    }
+  )
+  .refine(
+    (data) => {
+      // If volunteer type is community service, must have service reason
+      if (data.volunteerType === "communityService") {
+        return data.serviceReason && data.serviceReason.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Please select a reason for your community service",
+      path: ["serviceReason"],
+    }
+  )
+  .refine(
+    (data) => {
+      // If service reason is "other", must provide detail
+      if (
+        data.volunteerType === "communityService" &&
+        data.serviceReason === "other"
+      ) {
+        return data.serviceReasonOther && data.serviceReasonOther.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Please specify your reason for community service",
+      path: ["serviceReasonOther"],
+    }
+  )
+  .refine(
+    (data) => {
+      // If volunteer type is community service, must have institution
+      if (data.volunteerType === "communityService") {
+        return data.serviceInstitution && data.serviceInstitution.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Please enter the institution requiring your service",
+      path: ["serviceInstitution"],
+    }
+  );
+
+// Create validation functions for each step
+function validatePersonalInfo(data: any) {
+  const personalInfoSchema = z
+    .object({
+      firstName: z.string().min(1, "First name is required"),
+      lastName: z.string().min(1, "Last name is required"),
+      email: emailSchema,
+      phone: phoneSchema,
+      volunteerType: z.string(),
+    })
+    .refine(
+      (data) => {
+        // At least email or phone must be provided
+        return data.email.length > 0 || data.phone.length > 0;
+      },
+      {
+        message: "Please provide either an email or phone number",
+        path: ["email"],
+      }
+    );
+
+  // Add community service validations if needed
+  if (data.volunteerType === "communityService") {
+    return z
+      .object({
+        firstName: z.string().min(1, "First name is required"),
+        lastName: z.string().min(1, "Last name is required"),
+        email: emailSchema,
+        phone: phoneSchema,
+        volunteerType: z.string(),
+        serviceReason: z
+          .string()
+          .min(1, "Please select a reason for your community service"),
+        serviceReasonOther: z.string().optional(),
+        serviceInstitution: z
+          .string()
+          .min(1, "Please enter the institution requiring your service"),
+      })
+      .refine(
+        (data) => {
+          // At least email or phone must be provided
+          return data.email.length > 0 || data.phone.length > 0;
+        },
+        {
+          message: "Please provide either an email or phone number",
+          path: ["email"],
+        }
+      )
+      .refine(
+        (data) => {
+          // If service reason is "other", must provide detail
+          if (data.serviceReason === "other") {
+            return (
+              data.serviceReasonOther && data.serviceReasonOther.length > 0
+            );
+          }
+          return true;
+        },
+        {
+          message: "Please specify your reason for community service",
+          path: ["serviceReasonOther"],
+        }
+      )
+      .parse(data);
+  }
+
+  return personalInfoSchema.parse(data);
+}
+
+function validateSiteSelection(data: any) {
+  return z
+    .object({
+      site: z.string().min(1, "Please select a preferred site"),
+    })
+    .parse(data);
+}
+
+function validateWaiver(data: any) {
+  return z
+    .object({
+      waiverAccepted: z.literal(true, {
+        errorMap: () => ({ message: "You must accept the waiver to continue" }),
+      }),
+      waiverSignature: z
+        .string()
+        .min(1, "You must sign the waiver to continue"),
+    })
+    .parse(data);
+}
+
 export default function Register() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
   const totalSteps = 3; // Reduced from 4 to 3 (no emergency contact)
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Simplified form state
   const [formData, setFormData] = useState(() => {
@@ -94,6 +267,15 @@ export default function Register() {
       ...prev,
       [name]: value,
     }));
+
+    // Clear error for the field being changed
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
 
   const handleVolunteerTypeChange = (value: string) => {
@@ -109,6 +291,15 @@ export default function Register() {
       ...prev,
       site: value,
     }));
+
+    // Clear site error when changed
+    if (errors.site) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.site;
+        return newErrors;
+      });
+    }
   };
 
   // Handle waiver acceptance
@@ -117,20 +308,38 @@ export default function Register() {
       ...prev,
       waiverAccepted: checked,
     }));
+
+    // Clear waiver error when changed
+    if (errors.waiverAccepted) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.waiverAccepted;
+        return newErrors;
+      });
+    }
   };
 
   const [signatureSaved, setSignatureSaved] = useState(false);
 
-  const handleWaiverSignatureChange = (data: string) => {
-    console.log("Signature data received:", data);
+  const handleWaiverSignatureChange = (data: any) => {
+    console.log("Signature data received:", data.base64);
     // Only update if we received actual data (not empty)
     if (data && data !== "") {
       setFormData((prev) => ({
         ...prev,
-        waiverSignature: data,
+        waiverSignature: data.base64,
       }));
       setSignatureSaved(true);
       toast.success("Signature saved successfully");
+
+      // Clear signature error when changed
+      if (errors.waiverSignature) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors.waiverSignature;
+          return newErrors;
+        });
+      }
     }
   };
 
@@ -142,62 +351,58 @@ export default function Register() {
       // Reset the "other" reason if not selecting "other"
       serviceReasonOther: value !== "other" ? "" : prev.serviceReasonOther,
     }));
+
+    // Clear service reason error when changed
+    if (errors.serviceReason) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.serviceReason;
+        return newErrors;
+      });
+    }
   };
 
-  // Form validation for each step
+  // Form validation for each step using Zod
   const validateStep = () => {
-    if (step === 1) {
-      if (!formData.firstName || !formData.lastName) {
-        toast.error("Please enter your full name");
-        return false;
+    try {
+      if (step === 1) {
+        // Validate personal information
+        validatePersonalInfo(formData);
+      } else if (step === 2) {
+        // Validate site selection
+        validateSiteSelection(formData);
+      } else if (step === 3) {
+        // Validate waiver
+        validateWaiver(formData);
       }
 
-      if (!formData.email && !formData.phone) {
-        toast.error("Please provide either an email or phone number");
-        return false;
-      }
+      // Clear errors if validation passes
+      setErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // Transform Zod errors into a more usable format
+        const errorMap: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          // Get the field name from the path
+          const fieldName = err.path.join(".");
+          errorMap[fieldName] = err.message;
+        });
 
-      if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
-        toast.error("Please enter a valid email address");
-        return false;
-      }
+        // Set the errors
+        setErrors(errorMap);
 
-      if (formData.volunteerType === "communityService") {
-        if (!formData.serviceReason) {
-          toast.error("Please select a reason for your community service");
-          return false;
+        // Show the first error as a toast
+        if (error.errors.length > 0) {
+          toast.error(error.errors[0].message);
         }
-        if (
-          formData.serviceReason === "other" &&
-          !formData.serviceReasonOther
-        ) {
-          toast.error("Please specify your reason for community service");
-          return false;
-        }
-        if (!formData.serviceInstitution) {
-          toast.error("Please enter the institution requiring your service");
-          return false;
-        }
+      } else {
+        // Handle unexpected errors
+        console.error("Validation error:", error);
+        toast.error("An error occurred during validation");
       }
-    } else if (step === 2) {
-      // Validate site selection
-      if (!formData.site) {
-        toast.error("Please select a preferred site");
-        return false;
-      }
-    } else if (step === 3) {
-      // Validate waiver acceptance
-      if (!formData.waiverAccepted) {
-        toast.error("You must accept the waiver to continue");
-        return false;
-      }
-      if (!formData.waiverSignature) {
-        toast.error("You must sign the waiver to continue");
-        return false;
-      }
+      return false;
     }
-
-    return true;
   };
 
   const nextStep = () => {
@@ -216,7 +421,28 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateStep()) return;
+    // Validate the entire form
+    try {
+      volunteerSchema.parse(formData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // Transform Zod errors into a more usable format
+        const errorMap: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          const fieldName = err.path.join(".");
+          errorMap[fieldName] = err.message;
+        });
+
+        // Set the errors
+        setErrors(errorMap);
+
+        // Show the first error as a toast
+        if (error.errors.length > 0) {
+          toast.error(error.errors[0].message);
+        }
+        return;
+      }
+    }
 
     setIsLoading(true);
 
@@ -286,7 +512,13 @@ export default function Register() {
                     value={formData.firstName}
                     onChange={handleChange}
                     required
+                    className={errors.firstName ? "border-red-500" : ""}
                   />
+                  {errors.firstName && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.firstName}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -299,7 +531,13 @@ export default function Register() {
                     value={formData.lastName}
                     onChange={handleChange}
                     required
+                    className={errors.lastName ? "border-red-500" : ""}
                   />
+                  {errors.lastName && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.lastName}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -312,7 +550,11 @@ export default function Register() {
                     type="email"
                     value={formData.email}
                     onChange={handleChange}
+                    className={errors.email ? "border-red-500" : ""}
                   />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -321,11 +563,16 @@ export default function Register() {
                   </Label>
                   <Input
                     id="phone"
+                    type="tel"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
                     required
+                    className={errors.phone ? "border-red-500" : ""}
                   />
+                  {errors.phone && (
+                    <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                  )}
                 </div>
               </div>
 
@@ -341,7 +588,12 @@ export default function Register() {
                       value={formData.serviceReason}
                       onValueChange={handleServiceReasonChange}
                     >
-                      <SelectTrigger id="serviceReason" className="w-full">
+                      <SelectTrigger
+                        id="serviceReason"
+                        className={`w-full ${
+                          errors.serviceReason ? "border-red-500" : ""
+                        }`}
+                      >
                         <SelectValue placeholder="Select a reason" />
                       </SelectTrigger>
                       <SelectContent>
@@ -353,6 +605,11 @@ export default function Register() {
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
+                    {errors.serviceReason && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.serviceReason}
+                      </p>
+                    )}
 
                     {formData.serviceReason === "other" && (
                       <div className="mt-2">
@@ -362,9 +619,16 @@ export default function Register() {
                           value={formData.serviceReasonOther}
                           onChange={handleChange}
                           placeholder="Please specify your reason"
-                          className="mt-1"
+                          className={`mt-1 ${
+                            errors.serviceReasonOther ? "border-red-500" : ""
+                          }`}
                           required
                         />
+                        {errors.serviceReasonOther && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.serviceReasonOther}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -381,7 +645,15 @@ export default function Register() {
                       onChange={handleChange}
                       placeholder="e.g., Philadelphia Municipal Court, Central High School"
                       required
+                      className={
+                        errors.serviceInstitution ? "border-red-500" : ""
+                      }
                     />
+                    {errors.serviceInstitution && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.serviceInstitution}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -404,7 +676,7 @@ export default function Register() {
                 <Button
                   type="button"
                   onClick={nextStep}
-                  className="w-full bg-red-700 hover:bg-red-800"
+                  className="w-full bg-red-700 hover:bg-red-800 h-auto whitespace-normal py-3 text-center"
                 >
                   Continue to Site Selection
                 </Button>
@@ -433,7 +705,11 @@ export default function Register() {
                   onValueChange={handleSiteChange}
                   className="space-y-4"
                 >
-                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                  <div
+                    className={`flex items-center space-x-2 border p-4 rounded-md ${
+                      errors.site ? "border-red-500" : ""
+                    }`}
+                  >
                     <RadioGroupItem
                       value="west-philadelphia"
                       id="west-philadelphia"
@@ -446,7 +722,11 @@ export default function Register() {
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                  <div
+                    className={`flex items-center space-x-2 border p-4 rounded-md ${
+                      errors.site ? "border-red-500" : ""
+                    }`}
+                  >
                     <RadioGroupItem value="spring-garden" id="spring-garden" />
                     <Label
                       htmlFor="spring-garden"
@@ -456,7 +736,11 @@ export default function Register() {
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                  <div
+                    className={`flex items-center space-x-2 border p-4 rounded-md ${
+                      errors.site ? "border-red-500" : ""
+                    }`}
+                  >
                     <RadioGroupItem value="ambler" id="ambler" />
                     <Label
                       htmlFor="ambler"
@@ -466,6 +750,9 @@ export default function Register() {
                     </Label>
                   </div>
                 </RadioGroup>
+                {errors.site && (
+                  <p className="text-red-500 text-xs mt-1">{errors.site}</p>
+                )}
               </div>
             </div>
 
@@ -583,7 +870,9 @@ export default function Register() {
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
-                className="border-red-700"
+                className={`border-red-700 ${
+                  errors.waiverAccepted ? "border-red-500" : ""
+                }`}
                 id="waiver-acceptance"
                 checked={formData.waiverAccepted}
                 onCheckedChange={handleWaiverChange}
@@ -593,6 +882,11 @@ export default function Register() {
                 Liability
               </Label>
             </div>
+            {errors.waiverAccepted && (
+              <p className="text-red-500 text-xs mt-1">
+                {errors.waiverAccepted}
+              </p>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="signature" className="font-medium">
@@ -605,7 +899,11 @@ export default function Register() {
                 )}
               </div>
 
-              <div className="border rounded-md p-4">
+              <div
+                className={`border rounded-md p-4 ${
+                  errors.waiverSignature ? "border-red-500" : ""
+                }`}
+              >
                 <SignatureMaker
                   downloadOnSave={false}
                   onSave={handleWaiverSignatureChange}
@@ -618,6 +916,11 @@ export default function Register() {
                   textTypeButtonClass="hidden"
                 />
               </div>
+              {errors.waiverSignature && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.waiverSignature}
+                </p>
+              )}
             </div>
 
             {!signatureSaved && (
