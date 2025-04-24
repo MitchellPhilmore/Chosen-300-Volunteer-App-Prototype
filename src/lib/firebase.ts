@@ -738,6 +738,64 @@ export const migrateLocalStorageToFirestore = async () => {
   }
 };
 
+/**
+ * Get a volunteer by phone number
+ * @param phone - The phone number to search for
+ * @returns The volunteer data or null if not found
+ */
+export const getVolunteerByPhone = async (phone: string) => {
+  try {
+    // Normalize the phone number (remove non-digit characters)
+    const normalizedPhone = phone.replace(/\D/g, "");
+
+    // Query Firestore for the volunteer with this phone number
+    const q = query(
+      collection(db, VOLUNTEERS_COLLECTION),
+      where("phone", "==", normalizedPhone)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const volunteers: any[] = [];
+    querySnapshot.forEach((doc) => {
+      volunteers.push({ id: doc.id, ...doc.data() });
+    });
+
+    return { success: true, data: volunteers };
+  } catch (error) {
+    console.error("Error getting volunteer by phone:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get a musician by phone number
+ * @param phone - The phone number to search for
+ * @returns The musician data or null if not found
+ */
+export const getMusicianByPhone = async (phone: string) => {
+  try {
+    // Normalize the phone number (remove non-digit characters)
+    const normalizedPhone = phone.replace(/\D/g, "");
+
+    // Query Firestore for the musician with this phone number
+    const q = query(
+      collection(db, MUSICIANS_COLLECTION),
+      where("phone", "==", normalizedPhone)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const musicians: any[] = [];
+    querySnapshot.forEach((doc) => {
+      musicians.push({ id: doc.id, ...doc.data() });
+    });
+
+    return { success: true, data: musicians };
+  } catch (error) {
+    console.error("Error getting musician by phone:", error);
+    return { success: false, error };
+  }
+};
+
 // Export auth functions
 export { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
