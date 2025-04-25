@@ -14,6 +14,7 @@ import {
   ChevronRight,
   UserPlus,
   Heart,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -34,6 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  getMusicianById,
+  getVolunteerByPhone,
+  saveActiveMusicianSession,
+  completeMusicianSession,
+  getActiveMusicianSession,
+  getCompletedMusicianSessions,
+} from "@/lib/firebase";
 
 // Interface for Musician (align with registration/admin)
 interface Musician {
@@ -48,12 +57,16 @@ interface Musician {
   registrationDate: string;
 }
 
-// Interface for Musician Session (align with admin)
+// Interface for Musician Session (align with Firestore structure)
 interface MusicianSession {
+  id?: string; // Firestore document ID
   musicianId: string;
+  musicianName: string;
   activity: string;
-  signInTime: string;
-  checkOutTime?: string;
+  signInTime: string; // ISO string
+  signInTimeTimestamp?: any; // Firestore Timestamp for querying
+  checkOutTime?: string; // ISO string
+  checkOutTimeTimestamp?: any; // Firestore Timestamp for querying
 }
 
 export default function MusicianDashboard({
@@ -72,131 +85,207 @@ export default function MusicianDashboard({
   );
   const [musicianHistory, setMusicianHistory] = useState<MusicianSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAlsoVolunteer, setIsAlsoVolunteer] = useState(false);
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
 
-    const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-    const foundMusician = musicians.find((m: Musician) => m.id === id);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // 1. Fetch Musician Data
+        const musicianResult = await getMusicianById(id);
+        if (!musicianResult.success || !musicianResult.data) {
+          toast.error("Musician not found or error fetching data.");
+          // Check localStorage for the ID set during sign-in to prevent unnecessary redirects
+          const storedId = localStorage.getItem("currentMusicianId");
+          if (storedId !== id) {
+            router.push("/signin"); // Redirect if the ID doesn't match a valid session start
+          } else {
+            // Keep user on page but show error
+            console.error(
+              "Musician data mismatch or fetch error",
+              musicianResult.error
+            );
+          }
+          setLoading(false); // Ensure loading stops
+          return;
+        }
+        const currentMusician = musicianResult.data as Musician;
+        setMusician(currentMusician);
 
-    if (!foundMusician) {
-      toast.error("Musician not found");
-      router.push("/");
-      return;
-    }
+        // 2. Check if also Volunteer (using phone)
+        if (currentMusician.phone) {
+          const normalizedPhone = currentMusician.phone.replace(/\D/g, "");
+          const volunteerResult = await getVolunteerByPhone(normalizedPhone);
+          if (
+            volunteerResult.success &&
+            volunteerResult.data &&
+            volunteerResult.data.length > 0
+          ) {
+            setIsAlsoVolunteer(true);
+            // Assuming the first match is the relevant volunteer record
+            setVolunteerId(volunteerResult.data[0].id);
+          }
+        }
 
-    setMusician(foundMusician);
+        // 3. Fetch Active Session
+        const activeSessionResult = await getActiveMusicianSession(id);
+        if (activeSessionResult.success) {
+          if (activeSessionResult.data) {
+            const sessionData = activeSessionResult.data as MusicianSession;
+            setActiveSession(sessionData);
+            setIsSignedIn(true);
+            setSelectedActivity(sessionData.activity);
+            // Format timestamp if available, otherwise use ISO string
+            setSignInTime(
+              new Date(
+                sessionData.signInTimeTimestamp?.toDate() ||
+                  sessionData.signInTime
+              ).toLocaleTimeString()
+            );
+          } else {
+            // No active session
+            setActiveSession(null);
+            setIsSignedIn(false);
+            setSignInTime(null);
+            setSelectedActivity("");
+          }
+        } else {
+          toast.error("Error fetching active session.");
+          // Decide if this is critical - maybe allow dashboard access anyway?
+        }
 
-    // Check if musician is also registered as a volunteer
-    const volunteers = JSON.parse(localStorage.getItem("volunteers") || "[]");
-    const matchingVolunteer = volunteers.find(
-      (v: any) =>
-        (v.email && foundMusician.email && v.email === foundMusician.email) ||
-        (v.phone && foundMusician.phone && v.phone === foundMusician.phone)
-    );
+        // 4. Fetch Completed Sessions (History)
+        const completedSessionsResult = await getCompletedMusicianSessions(id);
+        if (completedSessionsResult.success && completedSessionsResult.data) {
+          setMusicianHistory(completedSessionsResult.data as MusicianSession[]);
+        } else {
+          toast.error("Error fetching session history.");
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        toast.error("An error occurred while loading dashboard data.");
+        router.push("/signin"); // Redirect on critical error
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    if (matchingVolunteer) {
-      setIsAlsoVolunteer(true);
-      setVolunteerId(matchingVolunteer.id);
-    }
-
-    // Load session data
-    const allSignIns: MusicianSession[] = JSON.parse(
-      localStorage.getItem("musicianSignIns") || "[]"
-    );
-    const musicianSignIns = allSignIns.filter((s) => s.musicianId === id);
-
-    // Find active session (no checkout time)
-    const currentActiveSession = musicianSignIns.find((s) => !s.checkOutTime);
-    if (currentActiveSession) {
-      setActiveSession(currentActiveSession);
-      setIsSignedIn(true);
-      setSelectedActivity(currentActiveSession.activity);
-      setSignInTime(
-        new Date(currentActiveSession.signInTime).toLocaleTimeString()
-      );
-    } else {
-      setActiveSession(null);
-      setIsSignedIn(false);
-      setSignInTime(null);
-      setSelectedActivity("");
-    }
-
-    // Find completed sessions (have checkout time)
-    const completedSessions = musicianSignIns.filter((s) => !!s.checkOutTime);
-    setMusicianHistory(completedSessions);
-
-    setLoading(false);
+    fetchData();
   }, [id, router]);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!selectedActivity) {
       toast.error("Please select an activity");
       return;
     }
     if (!musician) return;
 
-    const now = new Date();
-    const newSession: MusicianSession = {
-      musicianId: id,
-      activity: selectedActivity,
-      signInTime: now.toISOString(),
-    };
+    setIsSubmitting(true);
+    try {
+      const now = new Date();
+      const newSession: MusicianSession = {
+        musicianId: id,
+        musicianName: `${musician.firstName} ${musician.lastName}`,
+        activity: selectedActivity,
+        signInTime: now.toISOString(),
+        // Timestamps will be added by Firestore function if needed
+      };
 
-    // Update localStorage
-    const allSignIns = JSON.parse(
-      localStorage.getItem("musicianSignIns") || "[]"
-    );
-    allSignIns.push(newSession);
-    localStorage.setItem("musicianSignIns", JSON.stringify(allSignIns));
+      const result = await saveActiveMusicianSession(newSession);
 
-    // Update state
-    setActiveSession(newSession);
-    setSignInTime(now.toLocaleTimeString());
-    setIsSignedIn(true);
+      if (result.success && result.sessionId) {
+        // Add the generated Firestore ID to the local state
+        const savedSessionWithId = { ...newSession, id: result.sessionId };
+        setActiveSession(savedSessionWithId);
+        setSignInTime(now.toLocaleTimeString());
+        setIsSignedIn(true);
 
-    toast.success("Signed in successfully!", {
-      description: `Activity: ${selectedActivity}`,
-    });
+        toast.success("Signed in successfully!", {
+          description: `Activity: ${selectedActivity}`,
+        });
+      } else {
+        toast.error("Failed to sign in. Please try again.");
+      }
+    } catch (error) {
+      console.error("Sign in error:", error);
+      toast.error("An error occurred during sign in.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSignOut = () => {
-    if (!activeSession || !musician) return;
+  const handleSignOut = async () => {
+    if (!activeSession || !activeSession.id || !musician) return;
 
-    const now = new Date();
-    const updatedSession = {
-      ...activeSession,
-      checkOutTime: now.toISOString(),
-    };
+    setIsSubmitting(true);
+    try {
+      const now = new Date();
+      const updatedSessionData = {
+        checkOutTime: now.toISOString(),
+        // checkOutTimeTimestamp will be added by Firestore function
+      };
 
-    // Update localStorage
-    const allSignIns: MusicianSession[] = JSON.parse(
-      localStorage.getItem("musicianSignIns") || "[]"
-    );
-    const updatedSignIns = allSignIns.map((s) =>
-      s.musicianId === activeSession.musicianId &&
-      s.signInTime === activeSession.signInTime
-        ? updatedSession
-        : s
-    );
-    localStorage.setItem("musicianSignIns", JSON.stringify(updatedSignIns));
+      const result = await completeMusicianSession(
+        activeSession.id,
+        updatedSessionData
+      );
 
-    // Update state
-    setActiveSession(null);
-    setIsSignedIn(false);
-    setSignInTime(null);
-    setMusicianHistory([updatedSession, ...musicianHistory]);
-    setSelectedActivity("");
-
-    toast.success("Signed out successfully!");
+      if (result.success) {
+        // Update local state
+        const completedSession = { ...activeSession, ...updatedSessionData };
+        setActiveSession(null);
+        setIsSignedIn(false);
+        setSignInTime(null);
+        // Add checkout timestamp locally if possible for immediate UI update
+        completedSession.checkOutTimeTimestamp = { toDate: () => now };
+        setMusicianHistory([completedSession, ...musicianHistory]);
+        setSelectedActivity("");
+        toast.success("Signed out successfully!");
+        router.push("/"); // Redirect to the root page
+      } else {
+        toast.error("Failed to sign out. Please try again.");
+      }
+    } catch (error) {
+      console.error("Sign out error:", error);
+      toast.error("An error occurred during sign out.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString();
+    // Attempt to find the session to use its timestamp object if available
+    const session = musicianHistory.find(
+      (s) => s.signInTime === dateString || s.checkOutTime === dateString
+    );
+    // Check for signInTime match
+    if (session?.signInTimeTimestamp && session.signInTime === dateString) {
+      try {
+        return session.signInTimeTimestamp.toDate().toLocaleDateString();
+      } catch (e) {
+        /* Fall through */
+      }
+    }
+    // Check for checkOutTime match
+    if (session?.checkOutTimeTimestamp && session.checkOutTime === dateString) {
+      try {
+        return session.checkOutTimeTimestamp.toDate().toLocaleDateString();
+      } catch (e) {
+        /* Fall through */
+      }
+    }
+    // Fallback to parsing ISO string
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (e) {
+      console.error("Error formatting date:", dateString, e);
+      return "Invalid Date";
+    }
   };
 
   const totalSessions = useMemo(() => {
@@ -206,11 +295,35 @@ export default function MusicianDashboard({
   const totalTime = useMemo(() => {
     let totalMinutes = 0;
     musicianHistory.forEach((session) => {
-      if (session.checkOutTime) {
-        const start = new Date(session.signInTime).getTime();
-        const end = new Date(session.checkOutTime).getTime();
-        const durationMinutes = Math.round((end - start) / 60000);
-        totalMinutes += durationMinutes;
+      // Calculate duration using Timestamps if available for accuracy
+      let startMillis: number | null = null;
+      let endMillis: number | null = null;
+
+      try {
+        startMillis = session.signInTimeTimestamp?.toMillis();
+      } catch {
+        /* Ignore error if toMillis not available */
+      }
+
+      try {
+        endMillis = session.checkOutTimeTimestamp?.toMillis();
+      } catch {
+        /* Ignore error */
+      }
+
+      if (startMillis && endMillis) {
+        totalMinutes += Math.round((endMillis - startMillis) / 60000);
+      } else if (session.signInTime && session.checkOutTime) {
+        // Fallback to ISO strings (less accurate if timestamps aren't stored)
+        try {
+          const start = new Date(session.signInTime).getTime();
+          const end = new Date(session.checkOutTime).getTime();
+          if (!isNaN(start) && !isNaN(end)) {
+            totalMinutes += Math.round((end - start) / 60000);
+          }
+        } catch (e) {
+          console.warn("Could not parse session times:", session);
+        }
       }
     });
     const hours = Math.floor(totalMinutes / 60);
@@ -221,59 +334,81 @@ export default function MusicianDashboard({
     return `${minutes}m`;
   }, [musicianHistory]);
 
-  const handleRegisterAsVolunteer = (isCommunityService: boolean) => {
+  const handleRegisterAsVolunteer = async (isCommunityService: boolean) => {
     if (!musician) return;
 
-    // Basic check to prevent accidental double registration from this page
-    const existingVolunteers = JSON.parse(
-      localStorage.getItem("volunteers") || "[]"
-    );
-    const alreadyExists = existingVolunteers.some(
-      (v: any) =>
-        (v.email && musician.email && v.email === musician.email) ||
-        (v.phone && musician.phone && v.phone === musician.phone)
-    );
-    if (alreadyExists) {
-      toast.info("You seem to already be registered as a volunteer.");
-      // Optionally: Find the existing ID and redirect?
-      const matchingVolunteer = existingVolunteers.find(
-        (v: any) =>
-          (v.email && musician.email && v.email === musician.email) ||
-          (v.phone && musician.phone && v.phone === musician.phone)
-      );
-      if (matchingVolunteer) {
+    setIsSubmitting(true);
+    try {
+      // Check Firebase directly if volunteer record exists with this phone
+      const normalizedPhone = musician.phone.replace(/\D/g, "");
+      const volunteerResult = await getVolunteerByPhone(normalizedPhone);
+
+      if (
+        volunteerResult.success &&
+        volunteerResult.data &&
+        volunteerResult.data.length > 0
+      ) {
+        const existingVolunteer = volunteerResult.data[0];
         setIsAlsoVolunteer(true);
-        setVolunteerId(matchingVolunteer.id);
+        setVolunteerId(existingVolunteer.id);
+        toast.info("You are already registered as a volunteer.");
+
+        // Optionally redirect to volunteer registration if needed, passing data
+        // router.push(`/register?type=${existingVolunteer.volunteerType || 'regular'}&source=musicianDashboard&volunteerId=${existingVolunteer.id}`);
+      } else {
+        // If not found in Firebase, proceed to registration page
+        const type = isCommunityService ? "communityService" : "regular";
+        const queryParams = new URLSearchParams({
+          type,
+          source: "musicianDashboard",
+          firstName: musician.firstName,
+          lastName: musician.lastName,
+          email: musician.email || "",
+          phone: musician.phone || "",
+        }).toString();
+        router.push(`/register?${queryParams}`);
       }
-      return;
+    } catch (error) {
+      console.error("Error checking volunteer status:", error);
+      toast.error("Could not check volunteer status. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Redirect to the appropriate registration page
-    // Pass musician details as query params to pre-fill the form
-    const queryParams = new URLSearchParams({
-      firstName: musician.firstName,
-      lastName: musician.lastName,
-      email: musician.email || "",
-      phone: musician.phone || "",
-      source: "musicianDashboard",
-    });
-
-    if (isCommunityService) {
-      queryParams.set("type", "communityService");
-      router.push(`/register?${queryParams.toString()}`);
-    } else {
-      // For regular volunteer registration, just redirect
-      router.push(`/register?${queryParams.toString()}`);
-    }
-
-    // Note: We no longer create the volunteer record here.
-    // Registration completion happens on the /register page.
-    // We also don't immediately set isAlsoVolunteer = true here,
-    // as the registration isn't complete yet.
   };
 
-  if (loading || !musician) {
-    return <div>Loading...</div>;
+  // Handle explicit sign out (clears localStorage)
+  const handleExplicitSignOut = () => {
+    localStorage.removeItem("currentMusicianId");
+    toast.info("You have been signed out.");
+    router.push("/signin");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-16 w-16 animate-spin text-red-700" />
+      </div>
+    );
+  }
+
+  if (!musician) {
+    // This case should ideally be handled by the redirect in useEffect
+    // But add a button to go back just in case.
+    return (
+      <div className="container mx-auto py-8 px-4 text-center">
+        <Card className="max-w-md mx-auto p-6">
+          <CardTitle className="mb-4">Error</CardTitle>
+          <CardContent>
+            <p className="mb-4">
+              Musician data could not be loaded or session is invalid.
+            </p>
+            <Button onClick={() => router.push("/signin")}>
+              Go to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -282,248 +417,222 @@ export default function MusicianDashboard({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="max-w-4xl mx-auto"
       >
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Musician Dashboard</h1>
-            <CardDescription>
-              Welcome, {musician.firstName} {musician.lastName}
-            </CardDescription>
-          </div>
-          <Link href="/">
-            <Button
-              variant="outline"
-              className="border-red-700 text-red-700 hover:bg-red-50"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Time</CardTitle>
-              <Clock className="h-4 w-4 text-red-700" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalTime}</div>
-              <p className="text-xs text-muted-foreground">
-                Total duration contributed
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Musician Since
-              </CardTitle>
-              <Calendar className="h-4 w-4 text-red-700" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatDate(musician.registrationDate)}
-              </div>
-              <p className="text-xs text-muted-foreground">Registration date</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Sessions
-              </CardTitle>
-              <History className="h-4 w-4 text-red-700" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalSessions}</div>
-              <p className="text-xs text-muted-foreground">
-                Completed sessions
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-none shadow-lg">
+        <Card className="max-w-4xl mx-auto border-none shadow-lg mb-6">
           <CardHeader>
-            <CardTitle>Your Status & Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-500">
-                    Instruments
-                  </p>
-                  <p className="text-md font-semibold">
-                    {musician.instruments.join(", ") || "N/A"}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-500">Contact</p>
-                  <p className="text-md font-semibold">
-                    {musician.email || musician.phone || "N/A"}
-                  </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {/* Removed back arrow to signin, sign out is explicit */}
+                <div>
+                  <CardTitle>Musician Dashboard</CardTitle>
+                  <CardDescription>
+                    Welcome, {musician.firstName} {musician.lastName}!
+                  </CardDescription>
                 </div>
               </div>
-
-              {!isSignedIn ? (
-                <div className="space-y-4 p-4 border rounded-md">
-                  <Label htmlFor="activity-select" className="font-medium">
-                    Sign In for an Activity
-                  </Label>
-                  <Select
-                    value={selectedActivity}
-                    onValueChange={setSelectedActivity}
-                  >
-                    <SelectTrigger id="activity-select">
-                      <SelectValue placeholder="Select activity..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="rehearsal">Rehearsal</SelectItem>
-                      <SelectItem value="performance">Performance</SelectItem>
-                      <SelectItem value="recording">Recording</SelectItem>
-                      <SelectItem value="teaching">Teaching</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <motion.div
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                  >
-                    <Button
-                      onClick={handleSignIn}
-                      className="w-full bg-red-700 hover:bg-red-800"
-                      disabled={!selectedActivity}
-                    >
-                      <Music className="mr-2 h-5 w-5" />
-                      Sign In
-                    </Button>
-                  </motion.div>
-                </div>
-              ) : (
-                <div className="space-y-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
-                      <div>
-                        <p className="font-semibold text-green-800">
-                          Currently Signed In
-                        </p>
-                        <p className="text-sm text-green-700">
-                          Activity:{" "}
-                          <span className="font-medium">
-                            {selectedActivity}
-                          </span>
-                        </p>
-                        <p className="text-sm text-green-700">
-                          Time:{" "}
-                          <span className="font-medium">{signInTime}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleSignOut}
-                      >
-                        <LogOut className="mr-1 h-4 w-4" /> Sign Out
-                      </Button>
-                    </motion.div>
-                  </div>
-                </div>
-              )}
-
-              {musicianHistory.length > 0 && (
-                <div className="mt-6 pt-6 border-t">
-                  <h3 className="text-lg font-semibold mb-3">
-                    Session History
-                  </h3>
-                  <ul>
-                    {musicianHistory.slice(0, 5).map((session, index) => (
-                      <li key={index} className="text-sm text-gray-600 mb-1">
-                        {formatDate(session.signInTime)} - {session.activity}
-                      </li>
-                    ))}
-                  </ul>
-                  {musicianHistory.length > 5 && (
-                    <p className="text-sm text-red-700 mt-2">
-                      View full history...
-                    </p>
-                  )}
-                </div>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExplicitSignOut} // Use explicit sign out handler
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
             </div>
+          </CardHeader>
+        </Card>
+
+        {/* Sign In/Out Card */}
+        <Card className="max-w-4xl mx-auto border-none shadow-lg mb-6">
+          <CardHeader>
+            <CardTitle>Session Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {!isSignedIn ? (
+              <div className="space-y-4">
+                <Label htmlFor="activity">Select Activity</Label>
+                <Select
+                  value={selectedActivity}
+                  onValueChange={setSelectedActivity}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger id="activity">
+                    <SelectValue placeholder="Choose an activity..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rehearsal">Rehearsal</SelectItem>
+                    <SelectItem value="performance">Performance</SelectItem>
+                    <SelectItem value="meeting">Meeting</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <motion.div
+                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                >
+                  <Button
+                    onClick={handleSignIn}
+                    disabled={!selectedActivity || isSubmitting}
+                    className="w-full bg-red-700 hover:bg-red-800"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    {isSubmitting ? "Signing In..." : "Sign In"}
+                  </Button>
+                </motion.div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-lg font-medium text-green-600">
+                  Currently signed in for: {selectedActivity}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Sign-in time: {signInTime}
+                </p>
+                <motion.div
+                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                >
+                  <Button
+                    onClick={handleSignOut}
+                    disabled={isSubmitting}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <LogOut className="mr-2 h-4 w-4" />
+                    )}
+                    {isSubmitting ? "Signing Out..." : "Sign Out"}
+                  </Button>
+                </motion.div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-          <div className="space-y-6">
-            {/* Volunteer Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">
-                  Volunteer Opportunities
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isAlsoVolunteer ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
-                      You are also registered as a volunteer.
-                    </p>
-                    <Link href={`/volunteer-dashboard/${volunteerId}`}>
-                      <Button className="w-full bg-red-700 hover:bg-red-800">
-                        <UserPlus className="mr-2 h-5 w-5" />
-                        Go to Volunteer Dashboard
-                      </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
-                      Contribute your time through volunteering. Choose an
-                      option below to register.
-                    </p>
-                    <motion.div
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                    >
-                      <Button
-                        onClick={() => handleRegisterAsVolunteer(false)} // Regular volunteer
-                        variant="outline"
-                        className="w-full border-red-700 text-red-700 hover:bg-red-50"
-                      >
-                        <UserPlus className="mr-2 h-5 w-5" />
-                        Register as Regular Volunteer
-                      </Button>
-                    </motion.div>
-                    <motion.div
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                    >
-                      <Button
-                        onClick={() => handleRegisterAsVolunteer(true)} // Community Service
-                        variant="outline"
-                        className="w-full border-red-700 text-red-700 hover:bg-red-50"
-                      >
-                        <Heart className="mr-2 h-5 w-5" />
-                        Register for Community Service
-                      </Button>
-                    </motion.div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+        {/* Volunteer Registration Card (Conditional) */}
+        {!isAlsoVolunteer && (
+          <Card className="max-w-4xl mx-auto border-none shadow-lg mb-6">
+            <CardHeader>
+              <CardTitle>Expand Your Impact</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                Interested in helping out beyond music? Register as a general
+                volunteer or for community service hours.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <motion.div
+                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                  className="flex-1"
+                >
+                  <Button
+                    onClick={() => handleRegisterAsVolunteer(false)}
+                    disabled={isSubmitting}
+                    variant="outline"
+                    className="w-full border-red-700 text-red-700 hover:bg-red-50"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="mr-2 h-4 w-4" />
+                    )}
+                    Register as Volunteer
+                  </Button>
+                </motion.div>
+                <motion.div
+                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                  className="flex-1"
+                >
+                  <Button
+                    onClick={() => handleRegisterAsVolunteer(true)}
+                    disabled={isSubmitting}
+                    variant="outline"
+                    className="w-full border-red-700 text-red-700 hover:bg-red-50"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Heart className="mr-2 h-4 w-4" />
+                    )}
+                    Register for Community Service
+                  </Button>
+                </motion.div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          <div className="space-y-6">{/* Existing code */}</div>
-        </div>
+        {/* History Card */}
+        <Card className="max-w-4xl mx-auto border-none shadow-lg">
+          <CardHeader>
+            <CardTitle>Session History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-around mb-6 text-center">
+              <div>
+                <p className="text-2xl font-bold text-red-700">
+                  {totalSessions}
+                </p>
+                <p className="text-sm text-gray-600">Total Sessions</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-700">{totalTime}</p>
+                <p className="text-sm text-gray-600">Total Time</p>
+              </div>
+            </div>
+
+            {musicianHistory.length > 0 ? (
+              <ul className="space-y-4">
+                {musicianHistory.map((session, index) => (
+                  <motion.li
+                    key={session.id || index} // Use Firestore ID if available
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="border p-4 rounded-md shadow-sm bg-white"
+                  >
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center">
+                      <div className="mb-2 sm:mb-0">
+                        <p className="font-medium text-red-700">
+                          {session.activity}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {formatDate(session.signInTime)}
+                        </p>
+                      </div>
+                      <div className="text-sm text-gray-600 text-right">
+                        <p>
+                          In:{" "}
+                          {new Date(session.signInTime).toLocaleTimeString()}
+                        </p>
+                        <p>
+                          Out:{" "}
+                          {session.checkOutTime
+                            ? new Date(
+                                session.checkOutTime
+                              ).toLocaleTimeString()
+                            : "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500">
+                No completed sessions found.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   );

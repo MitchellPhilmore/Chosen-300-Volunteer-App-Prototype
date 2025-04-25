@@ -120,11 +120,7 @@ export default function VolunteerRegistration() {
       return;
     }
 
-    // Save to localStorage
-    localStorage.setItem(
-      "volunteers",
-      JSON.stringify([...volunteers, newVolunteer])
-    );
+   
 
     toast.success("Registration successful!");
     router.push(`/volunteer-dashboard/${newVolunteer.id}`);

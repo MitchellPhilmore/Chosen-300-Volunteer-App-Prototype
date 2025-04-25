@@ -866,17 +866,6 @@ export default function VolunteerDashboard() {
                 <p className="text-sm">
                   <span className="font-medium">Phone:</span> {volunteer.phone}
                 </p>
-                {volunteer.address && (
-                  <p className="text-sm">
-                    <span className="font-medium">Address:</span>{" "}
-                    {volunteer.address}, {volunteer.city}, {volunteer.state}{" "}
-                    {volunteer.zip}
-                  </p>
-                )}
-                <p className="text-sm">
-                  <span className="font-medium">Emergency Contact:</span>{" "}
-                  {volunteer.emergencyName} ({volunteer.emergencyPhone})
-                </p>
               </CardContent>
             </Card>
           </div>

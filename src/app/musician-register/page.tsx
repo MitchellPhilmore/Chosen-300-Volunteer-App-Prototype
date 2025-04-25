@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Music, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { saveMusician, getMusicianByPhone } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,8 @@ export default function MusicianRegistration() {
     experience: "",
     availability: "",
     waiverAccepted: false,
+    waiverSignature: null as string | null,
+    isSubmitting: false,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,7 +71,15 @@ export default function MusicianRegistration() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleWaiverSignatureChange = (signatureData: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      waiverSignature: signatureData.base64,
+    }));
+    toast.success("Signature saved successfully!");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Basic validation
@@ -92,50 +103,68 @@ export default function MusicianRegistration() {
       return;
     }
 
-    // Store musician data in localStorage
-    const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-
-    // Check if musician already exists
-    const existingMusician = musicians.find(
-      (m: any) =>
-        (m.email && m.email === formData.email) ||
-        (m.phone && m.phone === formData.phone) ||
-        (m.name &&
-          m.name.toLowerCase() ===
-            `${formData.firstName} ${formData.lastName}`.toLowerCase())
-    );
-
-    if (existingMusician) {
-      toast.error(
-        "A musician with this name, email, or phone number already exists"
-      );
+    if (!formData.waiverSignature) {
+      toast.error("Please sign the waiver to continue");
       return;
     }
 
-    const musicianId = crypto.randomUUID();
+    try {
+      // Check if musician already exists in Firebase
+      if (formData.phone) {
+        // Normalize phone number (remove non-digits)
+        const normalizedPhone = formData.phone.replace(/\D/g, "");
+        const existingMusician = await getMusicianByPhone(normalizedPhone);
 
-    const newMusician = {
-      id: musicianId,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      instruments: formData.instruments,
-      experience: formData.experience,
-      availability: formData.availability,
-      waiverAccepted: formData.waiverAccepted,
-      registrationDate: new Date().toISOString(),
-    };
-    console.log(newMusician);
+        if (
+          existingMusician.success &&
+          existingMusician.data &&
+          existingMusician.data.length > 0
+        ) {
+          toast.error("A musician with this phone number already exists");
+          return;
+        }
+      }
 
-    musicians.push(newMusician);
-    localStorage.setItem("musicians", JSON.stringify(musicians));
+      // Generate a unique ID for the musician
+      const musicianId = crypto.randomUUID();
 
-    toast.success("Registration successful!", {
-      description: "Thank you for registering as a musician.",
-    });
+      // Create the musician object
+      const newMusician = {
+        id: musicianId,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        instruments: formData.instruments,
+        experience: formData.experience,
+        availability: formData.availability,
+        waiverAccepted: formData.waiverAccepted,
+        waiverSignature: formData.waiverSignature,
+        registrationDate: new Date().toISOString(),
+      };
 
-    router.push(`/musician-dashboard/${musicianId}`);
+      // Set loading state during Firebase save
+      setFormData((prev) => ({ ...prev, isSubmitting: true }));
+
+      // Save to Firebase
+      const result = await saveMusician(newMusician);
+
+      if (result.success) {
+        toast.success("Registration successful!", {
+          description: "Thank you for registering as a musician.",
+        });
+        router.push(`/musician-dashboard/${musicianId}`);
+      } else {
+        toast.error("Failed to register. Please try again.", {
+          description: "There was an error saving your information.",
+        });
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.error("Failed to register. Please try again.");
+    } finally {
+      setFormData((prev) => ({ ...prev, isSubmitting: false }));
+    }
   };
 
   return (
@@ -233,17 +262,6 @@ export default function MusicianRegistration() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="experience">Musical Experience</Label>
-                <Input
-                  id="experience"
-                  name="experience"
-                  value={formData.experience}
-                  onChange={handleChange}
-                  placeholder="e.g., Years of experience, previous performances, etc."
-                />
               </div>
 
               <div className="space-y-2">
@@ -350,14 +368,16 @@ export default function MusicianRegistration() {
                   </Label>
                 </div>
                 <SignatureMaker
-                downloadOnSave={false}
-                onSave={(dataURL) => console.log(dataURL)}
-                withColorSelect={false}
-                withUpload={false}
-                withTyped={false}
-                textTypeButtonClass="hidden"
-                saveButtonClass="bg-red-700 hover:bg-red-800 h-10 w-20 text-white"
-              />
+                  downloadOnSave={false}
+                  onSave={handleWaiverSignatureChange}
+                  saveButtonText="Save Signature"
+                  saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
+                  canvasClass="h-50 w-full"
+                  withColorSelect={false}
+                  withUpload={false}
+                  withTyped={false}
+                  textTypeButtonClass="hidden"
+                />
               </div>
 
               <motion.div
@@ -367,11 +387,21 @@ export default function MusicianRegistration() {
                 <Button
                   type="submit"
                   className="w-full bg-red-700 hover:bg-red-800"
+                  disabled={formData.isSubmitting}
                 >
                   <div className="flex items-center justify-center space-x-3">
-                    <Music className="h-6 w-6" />
-                    <span>Complete Registration</span>
-                    <ChevronRight className="h-5 w-5 opacity-70" />
+                    {formData.isSubmitting ? (
+                      <>
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span>Registering...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Music className="h-6 w-6" />
+                        <span>Complete Registration</span>
+                        <ChevronRight className="h-5 w-5 opacity-70" />
+                      </>
+                    )}
                   </div>
                 </Button>
               </motion.div>

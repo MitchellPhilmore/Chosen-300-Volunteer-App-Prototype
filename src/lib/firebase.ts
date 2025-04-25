@@ -416,16 +416,26 @@ export const completeMusicianSession = async (
   sessionData: any
 ) => {
   try {
-    const completedSession = {
-      ...sessionData,
-      updatedAt: Timestamp.now(),
-      checkOutTimeTimestamp: sessionData.checkOutTime
-        ? Timestamp.fromDate(new Date(sessionData.checkOutTime))
-        : null,
+    const activeSessionSnap = await getDoc(
+      doc(db, ACTIVE_MUSICIAN_SESSIONS_COLLECTION, sessionId)
+    );
+    if (!activeSessionSnap.exists()) {
+      throw new Error("Active session not found");
+    }
+
+    const activeData = activeSessionSnap.data();
+    const completedSessionData = {
+      ...activeData, // Copy data from active session
+      checkOutTime: sessionData.checkOutTime, // Add the ISO string checkout time
+      checkOutTimeTimestamp: Timestamp.fromDate(
+        new Date(sessionData.checkOutTime)
+      ), // Add the Timestamp field
     };
+
+    // Add to completed collection
     await setDoc(
       doc(db, COMPLETED_MUSICIAN_SESSIONS_COLLECTION, sessionId),
-      completedSession
+      completedSessionData
     );
     await deleteDoc(doc(db, ACTIVE_MUSICIAN_SESSIONS_COLLECTION, sessionId));
     return { success: true };
@@ -436,7 +446,62 @@ export const completeMusicianSession = async (
 };
 
 /**
- * Get all active musician sessions
+ * Get a specific active musician session by musician ID
+ * @param musicianId The ID of the musician
+ * @returns The active session data or null if not found
+ */
+export const getActiveMusicianSession = async (musicianId: string) => {
+  try {
+    const q = query(
+      collection(db, ACTIVE_MUSICIAN_SESSIONS_COLLECTION),
+      where("musicianId", "==", musicianId),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const docSnap = querySnapshot.docs[0];
+      // Add the document ID to the returned data
+      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+    } else {
+      return { success: true, data: null }; // No active session found
+    }
+  } catch (error) {
+    console.error("Error getting active musician session:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get completed musician sessions by musician ID
+ * @param musicianId The ID of the musician
+ * @param count Number of sessions to retrieve (default 100)
+ * @returns Array of completed sessions
+ */
+export const getCompletedMusicianSessions = async (
+  musicianId: string,
+  count: number = 100
+) => {
+  try {
+    const q = query(
+      collection(db, COMPLETED_MUSICIAN_SESSIONS_COLLECTION),
+      where("musicianId", "==", musicianId),
+      orderBy("checkOutTimeTimestamp", "desc"), // Order by checkout time, descending
+      limit(count)
+    );
+    const querySnapshot = await getDocs(q);
+    const sessions: any[] = [];
+    querySnapshot.forEach((doc) => {
+      sessions.push({ id: doc.id, ...doc.data() });
+    });
+    return { success: true, data: sessions };
+  } catch (error) {
+    console.error("Error getting completed musician sessions:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get all active musician sessions (likely for admin use)
  * @returns Array of all active musician sessions
  */
 export const getAllActiveMusicianSessions = async () => {
@@ -461,14 +526,16 @@ export const getAllActiveMusicianSessions = async () => {
 };
 
 /**
- * Get all completed musician sessions
+ * Get all completed musician sessions (likely for admin use)
+ * @param count Number of sessions to retrieve (default 100)
  * @returns Array of all completed musician sessions
  */
-export const getAllCompletedMusicianSessions = async () => {
+export const getAllCompletedMusicianSessions = async (count: number = 100) => {
   try {
     const q = query(
       collection(db, COMPLETED_MUSICIAN_SESSIONS_COLLECTION),
-      orderBy("checkOutTimeTimestamp", "desc")
+      orderBy("checkOutTimeTimestamp", "desc"),
+      limit(count)
     );
     const querySnapshot = await getDocs(q);
     const sessions: any[] = [];
@@ -792,6 +859,28 @@ export const getMusicianByPhone = async (phone: string) => {
     return { success: true, data: musicians };
   } catch (error) {
     console.error("Error getting musician by phone:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get a musician by ID
+ * @param musicianId - The ID of the musician to retrieve
+ * @returns The musician data or null if not found
+ */
+export const getMusicianById = async (musicianId: string) => {
+  try {
+    const docRef = doc(db, MUSICIANS_COLLECTION, musicianId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      // Include the ID in the returned data
+      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+    } else {
+      return { success: false, error: "Musician not found" };
+    }
+  } catch (error) {
+    console.error("Error getting musician from Firestore:", error);
     return { success: false, error };
   }
 };

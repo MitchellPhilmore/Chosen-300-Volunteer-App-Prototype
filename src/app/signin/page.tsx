@@ -79,64 +79,21 @@ export default function SignIn() {
       if (volunteerMatch) setVolunteer(volunteerMatch);
       if (communityServiceMatch) setCommunityService(communityServiceMatch);
 
-      // If no match found in Firebase, fall back to localStorage (for demo/development)
-      let localMusicianMatch = null;
-      let localVolunteerMatch = null;
-      let localCommunityServiceMatch = null;
-
-      if (!musicianMatch && !volunteerMatch && !communityServiceMatch) {
-        // Fallback to localStorage for demo/development
-        const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-        localMusicianMatch = musicians.find(
-          (m: any) => m.phone.replace(/\D/g, "") === normalizedPhone
-        );
-
-        const volunteers = JSON.parse(
-          localStorage.getItem("volunteers") || "[]"
-        );
-        localVolunteerMatch = volunteers.find(
-          (v: any) =>
-            v.phone.replace(/\D/g, "") === normalizedPhone &&
-            (!v.volunteerType || v.volunteerType !== "communityService")
-        );
-
-        localCommunityServiceMatch = volunteers.find(
-          (v: any) =>
-            v.phone.replace(/\D/g, "") === normalizedPhone &&
-            v.volunteerType === "communityService"
-        );
-
-        if (localMusicianMatch) setMusician(localMusicianMatch);
-        if (localVolunteerMatch) setVolunteer(localVolunteerMatch);
-        if (localCommunityServiceMatch)
-          setCommunityService(localCommunityServiceMatch);
-      }
-
       // Check if we found any matching accounts using the direct match variables, not state
-      if (
-        musicianMatch ||
-        volunteerMatch ||
-        communityServiceMatch ||
-        localMusicianMatch ||
-        localVolunteerMatch ||
-        localCommunityServiceMatch
-      ) {
+      if (musicianMatch || volunteerMatch || communityServiceMatch) {
         // Handle multiple roles - Check direct matches, not state
         if (
           (musicianMatch && volunteerMatch) ||
           (musicianMatch && communityServiceMatch) ||
-          (volunteerMatch && communityServiceMatch) ||
-          (localMusicianMatch && localVolunteerMatch) ||
-          (localMusicianMatch && localCommunityServiceMatch) ||
-          (localVolunteerMatch && localCommunityServiceMatch)
+          (volunteerMatch && communityServiceMatch)
         ) {
           setShowRoleSelection(true);
           return;
         }
 
         // Handle single role - use direct matches for immediate navigation
-        if (musicianMatch || localMusicianMatch) {
-          const id = musicianMatch?.id || localMusicianMatch?.id;
+        if (musicianMatch) {
+          const id = musicianMatch.id;
           // Store current musician ID in localStorage for session management
           localStorage.setItem("currentMusicianId", id);
           toast.success("Signed in successfully as a musician!");
@@ -144,8 +101,8 @@ export default function SignIn() {
           return;
         }
 
-        if (volunteerMatch || localVolunteerMatch) {
-          const id = volunteerMatch?.id || localVolunteerMatch?.id;
+        if (volunteerMatch) {
+          const id = volunteerMatch.id;
           // Store current volunteer ID in localStorage for session management
           localStorage.setItem("currentVolunteerId", id);
           toast.success("Signed in successfully as a volunteer!");
@@ -153,11 +110,10 @@ export default function SignIn() {
           return;
         }
 
-        if (communityServiceMatch || localCommunityServiceMatch) {
-          const id =
-            communityServiceMatch?.id || localCommunityServiceMatch?.id;
+        if (communityServiceMatch) {
+          const id = communityServiceMatch.id;
           // Store current community service ID in localStorage for session management
-          localStorage.setItem("currentVolunteerId", id);
+          localStorage.setItem("currentVolunteerId", id); // Using volunteer ID key for now
           toast.success("Signed in successfully for community service!");
           router.push(`/volunteer-dashboard/${id}`);
           return;

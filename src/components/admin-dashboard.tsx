@@ -863,7 +863,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Volunteers
+              Completed Volunteer Sessions
             </CardTitle>
             <Users className="h-4 w-4 text-red-700" />
           </CardHeader>
@@ -875,7 +875,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Musicians
+              Completed Musician Sessions
             </CardTitle>
             <Music className="h-4 w-4 text-red-700" />
           </CardHeader>
@@ -1317,7 +1317,7 @@ export default function AdminDashboard() {
                             : "-"}
                         </TableCell>
                         <TableCell>
-                          {session.activity.replace(/\b\w/g, (l: string) =>
+                          {session.activity?.replace(/\b\w/g, (l: string) =>
                             l.toUpperCase()
                           )}
                         </TableCell>
