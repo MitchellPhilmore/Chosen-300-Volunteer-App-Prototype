@@ -78,7 +78,7 @@ export default function SplashScreen() {
               <div className="absolute inset-0 w-0 bg-white transition-all duration-[400ms] ease-out group-hover:w-full opacity-10"></div>
               <div className="flex items-center justify-center space-x-3">
                 <LogIn className="h-6 w-6" />
-                <span>Already Registered?</span>
+                <span>Already Registered</span>
                 <ChevronRight className="h-5 w-5 opacity-70" />
               </div>
             </Button>

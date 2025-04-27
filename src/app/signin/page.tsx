@@ -173,11 +173,11 @@ export default function SignIn() {
             {!showRoleSelection ? (
               <form onSubmit={handleSignIn} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone">Phone Number or Email</Label>
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="Enter your phone number"
+                    placeholder="Enter your phone number or email"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     required
@@ -213,6 +213,12 @@ export default function SignIn() {
                       className="text-red-700 hover:underline"
                     >
                       Register as Volunteer
+                    </Link>
+                    <Link
+                      href="/register?type=communityService"
+                      className="text-red-700 hover:underline"
+                    >
+                      Register for Community Service
                     </Link>
                     <span className="text-gray-400">|</span>
                     <Link

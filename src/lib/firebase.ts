@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   updateDoc,
   Firestore,
+  or,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -889,3 +890,62 @@ export const getMusicianById = async (musicianId: string) => {
 export { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 export { db };
+
+// Function to check if a volunteer with the same email or phone already exists
+export async function checkDuplicateVolunteer(
+  email: string,
+  phone: string
+): Promise<{ isDuplicate: boolean; message?: string }> {
+  try {
+    if (!email && !phone) {
+      // If neither email nor phone is provided, can't check for duplicates
+      return { isDuplicate: false };
+    }
+
+    const db = getFirestore();
+    let queryConstraints = [];
+
+    // Add constraints based on provided fields
+    if (email && email.trim() !== "") {
+      queryConstraints.push(where("email", "==", email));
+    }
+
+    if (phone && phone.trim() !== "") {
+      queryConstraints.push(where("phone", "==", phone));
+    }
+
+    // If we have at least one constraint
+    if (queryConstraints.length > 0) {
+      // Create a query with OR condition for email or phone
+      const q = query(
+        collection(db, VOLUNTEERS_COLLECTION),
+        or(...queryConstraints)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // Check what field caused the duplicate
+        let duplicateField = "";
+        querySnapshot.forEach((doc) => {
+          const volData = doc.data();
+          if (email && volData.email === email) {
+            duplicateField = "email";
+          } else if (phone && volData.phone === phone) {
+            duplicateField = "phone";
+          }
+        });
+
+        return {
+          isDuplicate: true,
+          message: `A volunteer with this ${duplicateField} already exists.`,
+        };
+      }
+    }
+
+    return { isDuplicate: false };
+  } catch (error) {
+    console.error("Error checking for duplicate volunteer:", error);
+    return { isDuplicate: false };
+  }
+}

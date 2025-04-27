@@ -9,7 +9,11 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
-import { saveVolunteer } from "@/lib/firebase";
+import {
+  saveVolunteer,
+
+  checkDuplicateVolunteer,
+} from "@/lib/firebase";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -447,6 +451,22 @@ export default function Register() {
     setIsLoading(true);
 
     try {
+      // Check for duplicate volunteer
+      const { isDuplicate, message } = await checkDuplicateVolunteer(
+        formData.email,
+        formData.phone
+      );
+
+      if (isDuplicate) {
+        setErrors({
+          ...errors,
+          duplicate: message || "This volunteer already exists in our system.",
+        });
+        setIsLoading(false);
+        toast.error("Registration failed. " + message);
+        return;
+      }
+
       // Create a unique ID for the volunteer
       const volunteerId = uuidv4();
 
@@ -558,9 +578,7 @@ export default function Register() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">
-                    Phone Number <span className="text-red-700">*</span>
-                  </Label>
+                  <Label htmlFor="phone">Phone Number</Label>
                   <Input
                     id="phone"
                     type="tel"
