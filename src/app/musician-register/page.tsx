@@ -7,6 +7,7 @@ import { ArrowLeft, Music, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { saveMusician, getMusicianByPhone } from "@/lib/firebase";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,33 @@ const INSTRUMENTS = [
   { id: "keyboard", label: "Keyboard" },
 ];
 
+// Define validation schemas
+const nameSchema = z
+  .string()
+  .min(1, "Name is required")
+  .regex(
+    /^[A-Za-z\s\-']+$/,
+    "Name can only contain letters, spaces, hyphens, and apostrophes"
+  );
+
+const emailSchema = z
+  .string()
+  .email("Please enter a valid email address")
+  .or(z.string().length(0));
+
+const phoneSchema = z
+  .string()
+  .regex(/^\d+$/, "Phone number must contain only digits")
+  .or(z.string().length(0));
+
+const textFieldSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9\s\-',\.]+$/,
+    "Field can only contain letters, numbers, spaces, commas, periods, hyphens, and apostrophes"
+  )
+  .or(z.string().length(0));
+
 export default function MusicianRegistration() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -49,12 +77,23 @@ export default function MusicianRegistration() {
     isSubmitting: false,
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+
+    // Clear error for the field being changed
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
 
   const handleInstrumentChange = (value: string) => {
@@ -62,6 +101,15 @@ export default function MusicianRegistration() {
       ...prev,
       instruments: [value], // Only allow one instrument selection
     }));
+
+    // Clear instrument error
+    if (errors.instruments) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.instruments;
+        return newErrors;
+      });
+    }
   };
 
   const handleWaiverChange = (checked: boolean) => {
@@ -69,6 +117,15 @@ export default function MusicianRegistration() {
       ...prev,
       waiverAccepted: checked,
     }));
+
+    // Clear waiver error
+    if (errors.waiverAccepted) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.waiverAccepted;
+        return newErrors;
+      });
+    }
   };
 
   const handleWaiverSignatureChange = (signatureData: any) => {
@@ -76,35 +133,107 @@ export default function MusicianRegistration() {
       ...prev,
       waiverSignature: signatureData.base64,
     }));
+
+    // Clear signature error
+    if (errors.waiverSignature) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.waiverSignature;
+        return newErrors;
+      });
+    }
+
     toast.success("Signature saved successfully!");
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    try {
+      // Validate first name
+      nameSchema.parse(formData.firstName);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        newErrors.firstName = error.errors[0].message;
+      }
+    }
+
+    try {
+      // Validate last name
+      nameSchema.parse(formData.lastName);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        newErrors.lastName = error.errors[0].message;
+      }
+    }
+
+    // Only validate email if provided
+    if (formData.email) {
+      try {
+        emailSchema.parse(formData.email);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          newErrors.email = error.errors[0].message;
+        }
+      }
+    }
+
+    // Only validate phone if provided
+    if (formData.phone) {
+      try {
+        phoneSchema.parse(formData.phone);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          newErrors.phone = error.errors[0].message;
+        }
+      }
+    }
+
+    // Require at least email or phone
+    if (!formData.email && !formData.phone) {
+      newErrors.email = "Please provide either an email or phone number";
+    }
+
+    // Validate availability
+    if (formData.availability) {
+      try {
+        textFieldSchema.parse(formData.availability);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          newErrors.availability = error.errors[0].message;
+        }
+      }
+    }
+
+    // Validate instrument selection
+    if (formData.instruments.length === 0) {
+      newErrors.instruments = "Please select at least one instrument you play";
+    }
+
+    // Validate waiver acceptance
+    if (!formData.waiverAccepted) {
+      newErrors.waiverAccepted = "You must accept the waiver to continue";
+    }
+
+    // Validate waiver signature
+    if (!formData.waiverSignature) {
+      newErrors.waiverSignature = "Please sign the waiver to continue";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
-    if (!formData.firstName || !formData.lastName) {
-      toast.error("Please enter your full name");
-      return;
-    }
-
-    if (!formData.email && !formData.phone) {
-      toast.error("Please provide either an email or phone number");
-      return;
-    }
-
-    if (formData.instruments.length === 0) {
-      toast.error("Please select at least one instrument you play");
-      return;
-    }
-
-    if (!formData.waiverAccepted) {
-      toast.error("You must accept the waiver to continue");
-      return;
-    }
-
-    if (!formData.waiverSignature) {
-      toast.error("Please sign the waiver to continue");
+    // Validate the form using Zod
+    if (!validateForm()) {
+      // Show the first error as a toast
+      const firstError = Object.values(errors)[0];
+      if (firstError) {
+        toast.error(firstError);
+      }
       return;
     }
 
@@ -203,7 +332,13 @@ export default function MusicianRegistration() {
                     value={formData.firstName}
                     onChange={handleChange}
                     required
+                    className={errors.firstName ? "border-red-500" : ""}
                   />
+                  {errors.firstName && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.firstName}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -216,7 +351,13 @@ export default function MusicianRegistration() {
                     value={formData.lastName}
                     onChange={handleChange}
                     required
+                    className={errors.lastName ? "border-red-500" : ""}
                   />
+                  {errors.lastName && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.lastName}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -229,7 +370,11 @@ export default function MusicianRegistration() {
                     type="email"
                     value={formData.email}
                     onChange={handleChange}
+                    className={errors.email ? "border-red-500" : ""}
                   />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -239,7 +384,11 @@ export default function MusicianRegistration() {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
+                    className={errors.phone ? "border-red-500" : ""}
                   />
+                  {errors.phone && (
+                    <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                  )}
                 </div>
               </div>
 
@@ -251,7 +400,9 @@ export default function MusicianRegistration() {
                   value={formData.instruments[0] || ""}
                   onValueChange={handleInstrumentChange}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    className={errors.instruments ? "border-red-500" : ""}
+                  >
                     <SelectValue placeholder="Select your primary instrument" />
                   </SelectTrigger>
                   <SelectContent>
@@ -262,6 +413,11 @@ export default function MusicianRegistration() {
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.instruments && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.instruments}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -272,7 +428,13 @@ export default function MusicianRegistration() {
                   value={formData.availability}
                   onChange={handleChange}
                   placeholder="e.g., Weekends, Wednesday evenings, etc."
+                  className={errors.availability ? "border-red-500" : ""}
                 />
+                {errors.availability && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.availability}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -357,7 +519,9 @@ export default function MusicianRegistration() {
                 </div>
                 <div className="flex items-center space-x-2 mt-3">
                   <Checkbox
-                    className="border-red-700"
+                    className={`border-red-700 ${
+                      errors.waiverAccepted ? "border-red-500" : ""
+                    }`}
                     id="waiver-acceptance"
                     checked={formData.waiverAccepted}
                     onCheckedChange={handleWaiverChange}
@@ -367,17 +531,35 @@ export default function MusicianRegistration() {
                     of Liability <span className="text-red-700">*</span>
                   </Label>
                 </div>
-                <SignatureMaker
-                  downloadOnSave={false}
-                  onSave={handleWaiverSignatureChange}
-                  saveButtonText="Save Signature"
-                  saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
-                  canvasClass="h-50 w-full"
-                  withColorSelect={false}
-                  withUpload={false}
-                  withTyped={false}
-                  textTypeButtonClass="hidden"
-                />
+                {errors.waiverAccepted && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.waiverAccepted}
+                  </p>
+                )}
+                <div
+                  className={
+                    errors.waiverSignature
+                      ? "border-red-500 border rounded-md"
+                      : ""
+                  }
+                >
+                  <SignatureMaker
+                    downloadOnSave={false}
+                    onSave={handleWaiverSignatureChange}
+                    saveButtonText="Save Signature"
+                    saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
+                    canvasClass="h-50 w-full"
+                    withColorSelect={false}
+                    withUpload={false}
+                    withTyped={false}
+                    textTypeButtonClass="hidden"
+                  />
+                </div>
+                {errors.waiverSignature && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.waiverSignature}
+                  </p>
+                )}
               </div>
 
               <motion.div

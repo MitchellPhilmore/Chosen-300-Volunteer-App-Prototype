@@ -9,11 +9,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
-import {
-  saveVolunteer,
-
-  checkDuplicateVolunteer,
-} from "@/lib/firebase";
+import { saveVolunteer, checkDuplicateVolunteer } from "@/lib/firebase";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -49,17 +45,34 @@ const phoneSchema = z
   .regex(/^\d+$/, "Phone number must contain only digits")
   .or(z.string().length(0));
 
+// Name validation - allow letters, spaces, hyphens, and apostrophes
+const nameSchema = z
+  .string()
+  .min(1, "Name is required")
+  .regex(
+    /^[A-Za-z\s\-']+$/,
+    "Name can only contain letters, spaces, hyphens, and apostrophes"
+  );
+
+// Text field validation - more permissive but still restricts special characters
+const textFieldSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9\s\-',\.]+$/,
+    "Field can only contain letters, numbers, spaces, commas, periods, hyphens, and apostrophes"
+  );
+
 // Comprehensive schema for the entire form
 const volunteerSchema = z
   .object({
-    firstName: z.string().min(1, "First name is required"),
-    lastName: z.string().min(1, "Last name is required"),
+    firstName: nameSchema,
+    lastName: nameSchema,
     email: emailSchema,
     phone: phoneSchema,
     volunteerType: z.string(),
     serviceReason: z.string().optional(),
-    serviceReasonOther: z.string().optional(),
-    serviceInstitution: z.string().optional(),
+    serviceReasonOther: textFieldSchema.optional(),
+    serviceInstitution: textFieldSchema.optional(),
     site: z.string().min(1, "Please select a preferred site"),
     waiverAccepted: z.literal(true, {
       errorMap: () => ({ message: "You must accept the waiver to continue" }),
@@ -123,8 +136,8 @@ const volunteerSchema = z
 function validatePersonalInfo(data: any) {
   const personalInfoSchema = z
     .object({
-      firstName: z.string().min(1, "First name is required"),
-      lastName: z.string().min(1, "Last name is required"),
+      firstName: nameSchema,
+      lastName: nameSchema,
       email: emailSchema,
       phone: phoneSchema,
       volunteerType: z.string(),
@@ -144,18 +157,19 @@ function validatePersonalInfo(data: any) {
   if (data.volunteerType === "communityService") {
     return z
       .object({
-        firstName: z.string().min(1, "First name is required"),
-        lastName: z.string().min(1, "Last name is required"),
+        firstName: nameSchema,
+        lastName: nameSchema,
         email: emailSchema,
         phone: phoneSchema,
         volunteerType: z.string(),
         serviceReason: z
           .string()
           .min(1, "Please select a reason for your community service"),
-        serviceReasonOther: z.string().optional(),
-        serviceInstitution: z
-          .string()
-          .min(1, "Please enter the institution requiring your service"),
+        serviceReasonOther: textFieldSchema.optional(),
+        serviceInstitution: textFieldSchema.min(
+          1,
+          "Please enter the institution requiring your service"
+        ),
       })
       .refine(
         (data) => {
