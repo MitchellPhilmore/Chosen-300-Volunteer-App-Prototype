@@ -1,11 +1,11 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
 import { toast } from "sonner";
+import { Timestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,8 +19,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAutoReturn } from "@/hooks/use-auto-return";
+import {
+  getActiveVolunteerSessionByPhoneOrEmail,
+  completeVolunteerSession,
+} from "@/lib/firebase";
 
 interface VolunteerSession {
+  id: string;
   identifier: string;
   program: string;
   checkInTime: string;
@@ -32,6 +37,10 @@ interface VolunteerSession {
     firstName: string;
     lastName: string;
   };
+  checkInTimeTimestamp?: Timestamp;
+  checkOutTimeTimestamp?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export default function CheckOut() {
@@ -45,95 +54,130 @@ export default function CheckOut() {
   // Auto-return to home after 60 seconds of inactivity
   useAutoReturn();
 
-  const handleIdentifierSubmit = (e: React.FormEvent) => {
+  const handleIdentifierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier) return;
+    setIsLoading(true);
 
-    // In a real app, you would fetch this from a database
-    const activeVolunteers = JSON.parse(
-      localStorage.getItem("activeVolunteers") || "[]"
-    );
-    const volunteerSession = activeVolunteers.find(
-      (v: VolunteerSession) => v.identifier === identifier
-    );
+    try {
+      const result = await getActiveVolunteerSessionByPhoneOrEmail(identifier);
 
-    if (volunteerSession) {
-      setSession(volunteerSession);
-      setStep(2);
-    } else {
-      toast.error("No active session found", {
-        description:
-          "We couldn't find an active check-in with this identifier.",
-      });
+      if (result.success && result.data) {
+        setSession(result.data as VolunteerSession);
+        setStep(2);
+      } else if (result.message === "No active session found") {
+        toast.error("No active session found", {
+          description:
+            "We couldn't find an active check-in with this identifier.",
+        });
+      } else {
+        console.error("Error fetching session:", result.error);
+        toast.error("Error finding session", {
+          description: "Could not retrieve session details. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Error in handleIdentifierSubmit:", error);
+      toast.error("An unexpected error occurred.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleCheckOut = () => {
-    if (!session) return;
+  const handleCheckOut = async () => {
+    if (!session || !session.id) return;
 
     setIsLoading(true);
 
-    // Simulate API call to check out volunteer
-    setTimeout(() => {
-      // In a real app, you would update this in a database
-      const activeVolunteers = JSON.parse(
-        localStorage.getItem("activeVolunteers") || "[]"
-      );
-      const updatedVolunteers = activeVolunteers.filter(
-        (v: VolunteerSession) => v.identifier !== identifier
-      );
-      localStorage.setItem(
-        "activeVolunteers",
-        JSON.stringify(updatedVolunteers)
-      );
-
-      // Calculate hours (in a real app, store this in a completed sessions table)
-      const checkInTime = new Date(session.checkInTime);
+    try {
       const checkOutTime = new Date();
+      // Use Timestamps if available for more accuracy, otherwise fallback to ISO string
+      const checkIn = session.checkInTimeTimestamp?.toDate
+        ? session.checkInTimeTimestamp.toDate()
+        : new Date(session.checkInTime);
       const hoursWorked = (
-        (checkOutTime.getTime() - checkInTime.getTime()) /
+        (checkOutTime.getTime() - checkIn.getTime()) /
         3600000
       ).toFixed(2);
 
-      const completedSessions = JSON.parse(
-        localStorage.getItem("completedSessions") || "[]"
-      );
-      completedSessions.push({
-        ...session,
-        checkOutTime: checkOutTime.toISOString(),
-        hoursWorked,
-        rating,
-      });
-      localStorage.setItem(
-        "completedSessions",
-        JSON.stringify(completedSessions)
+      // Prepare minimal data for the update/completion
+      const completedSessionData: { [key: string]: any } = {
+        checkOutTime: checkOutTime.toISOString(), // Add check-out ISO string
+        hoursWorked: hoursWorked,
+        // Conditionally add rating only if it's provided
+        ...(rating > 0 && { rating: rating }),
+        // checkOutTimeTimestamp will be added server-side by completeVolunteerSession
+      };
+
+      // Call the Firebase function to handle completion
+      // It needs the ID of the active session and the fields to add/update
+      const result = await completeVolunteerSession(
+        session.id, // Pass the ID of the active session to delete/move
+        completedSessionData // Pass ONLY the new/updated data for the completed session
       );
 
-      setStep(3);
+      if (result.success) {
+        setStep(3);
+      } else {
+        console.error("Error checking out:", result.error);
+        toast.error("Check-out failed", {
+          description:
+          
+            "Could not complete the check-out. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Error in handleCheckOut:", error);
+      toast.error("An unexpected error occurred during check-out.");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleRatingSubmit = () => {
-    toast.success("Thank you!", {
-      description: "Your feedback has been recorded.",
+    // Rating is now saved during handleCheckOut if provided before step 3
+    // If rating step is kept, it just acts as confirmation now.
+    toast.success("Check-out Complete!", {
+      description:
+        rating > 0
+          ? "Thank you for your feedback."
+          : "Thank you for your service!",
     });
     router.push("/");
   };
 
   const goBack = () => {
-    if (step > 1 && step < 3) {
-      setStep(step - 1);
+    if (step === 2) {
+      setSession(null); // Clear session when going back from step 2
+      setIdentifier(""); // Optionally clear identifier
+      setStep(1);
     } else {
       router.push("/");
     }
   };
 
-  const formatTime = (timeString: string) => {
-    return new Date(timeString).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatTime = (timeString: string | undefined) => {
+    if (!timeString) return "N/A";
+    // Check if session and timestamp exist for potentially more accurate time
+    if (session?.checkInTimeTimestamp && session.checkInTime === timeString) {
+      try {
+        return session.checkInTimeTimestamp.toDate().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (e) {
+        /* Fall through */
+      }
+    }
+    // Fallback to ISO string parsing
+    try {
+      return new Date(timeString).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "Invalid Time";
+    }
   };
 
   return (
@@ -155,8 +199,8 @@ export default function CheckOut() {
                 {step === 1
                   ? "Enter your identifier"
                   : step === 2
-                  ? "Confirm your session"
-                  : "Rate your experience"}
+                  ? "Confirm your session & optionally rate"
+                  : "Check-out complete"}
               </CardDescription>
             </div>
           </div>
@@ -173,14 +217,23 @@ export default function CheckOut() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     autoFocus
+                    disabled={isLoading}
                   />
                 </div>
               </div>
               <Button
                 type="submit"
                 className="w-full mt-6 bg-red-700 hover:bg-red-800"
+                disabled={isLoading || !identifier}
               >
-                Find My Session
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Finding...
+                  </>
+                ) : (
+                  "Find My Session"
+                )}
               </Button>
             </form>
           )}
@@ -191,10 +244,17 @@ export default function CheckOut() {
                 <h3 className="font-medium mb-2">Active Session</h3>
                 <div className="space-y-1 text-sm">
                   <p>
+                    <strong>Volunteer:</strong>{" "}
+                    {session.volunteerInfo
+                      ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
+                      : session.identifier}
+                  </p>
+                  <p>
                     <strong>Program:</strong>{" "}
                     {session.program
-                      .replace(/-/g, " ")
-                      .replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      ?.replace(/-/g, " ")
+                      .replace(/\b\w/g, (l: string) => l.toUpperCase()) ||
+                      "N/A"}
                   </p>
                   <p>
                     <strong>Check-in time:</strong>{" "}
@@ -204,7 +264,10 @@ export default function CheckOut() {
                     <strong>Current duration:</strong>{" "}
                     {Math.round(
                       (new Date().getTime() -
-                        new Date(session.checkInTime).getTime()) /
+                        (
+                          session.checkInTimeTimestamp?.toDate() ||
+                          new Date(session.checkInTime)
+                        ).getTime()) /
                         60000
                     )}{" "}
                     minutes
@@ -212,28 +275,9 @@ export default function CheckOut() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleCheckOut}
-                className="w-full bg-red-700 hover:bg-red-800"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Confirm Check-Out"
-                )}
-              </Button>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
               <div className="text-center">
                 <h3 className="font-medium mb-4">
-                  How was your volunteer experience today?
+                  Rate your experience (optional)
                 </h3>
                 <div className="flex justify-center space-x-2">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -245,6 +289,7 @@ export default function CheckOut() {
                         rating >= star ? "text-red-700" : "text-gray-300"
                       }`}
                       onClick={() => setRating(star)}
+                      disabled={isLoading}
                     >
                       <Star className="h-8 w-8 fill-current" />
                     </Button>
@@ -253,10 +298,34 @@ export default function CheckOut() {
               </div>
 
               <Button
+                onClick={handleCheckOut}
+                className="w-full bg-red-700 hover:bg-red-800"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing Check-Out...
+                  </>
+                ) : (
+                  "Confirm Check-Out"
+                )}
+              </Button>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-semibold text-green-600">
+                Check-Out Successful!
+              </h3>
+              <p>Thank you for volunteering your time.</p>
+              {rating > 0 && <p>We appreciate your feedback!</p>}
+              <Button
                 onClick={handleRatingSubmit}
                 className="w-full bg-red-700 hover:bg-red-800"
               >
-                Submit & Finish
+                Return Home
               </Button>
             </div>
           )}
@@ -266,8 +335,8 @@ export default function CheckOut() {
             {step === 1
               ? "Please enter the same identifier you used to check in"
               : step === 2
-              ? "Thank you for your service today!"
-              : "Your feedback helps us improve"}
+              ? "Confirm details and optionally rate your experience"
+              : "Have a great day!"}
           </p>
         </CardFooter>
       </Card>
