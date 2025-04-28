@@ -517,9 +517,7 @@ export default function AdminDashboard() {
       session.volunteerInfo
         ? getVolunteerType(session.volunteerInfo.id)
         : "Unknown",
-      session.program
-        .replace(/-/g, " ")
-        .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+    
       session.location || "N/A",
       formatTime(session.checkInTime),
       session.checkOutTime ? formatTime(session.checkOutTime) : "",
