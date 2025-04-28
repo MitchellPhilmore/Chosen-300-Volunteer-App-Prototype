@@ -163,7 +163,17 @@ export default function MusicianDashboard({
         if (completedSessionsResult.success && completedSessionsResult.data) {
           setMusicianHistory(completedSessionsResult.data as MusicianSession[]);
         } else {
-          toast.error("Error fetching session history.");
+          // If there's an error or no data (e.g., new musician), default to empty history
+          setMusicianHistory([]);
+          // Optionally log the error if it wasn't just 'no data'
+          if (!completedSessionsResult.success) {
+            console.error(
+              "Error fetching session history:",
+              completedSessionsResult.error
+            );
+            // You might still want a subtle notification or log here, but not a blocking error toast
+            // toast.info("Could not fetch session history.");
+          }
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -579,12 +589,14 @@ export default function MusicianDashboard({
             <div className="flex justify-around mb-6 text-center">
               <div>
                 <p className="text-2xl font-bold text-red-700">
-                  {totalSessions}
+                  {totalSessions || 0}
                 </p>
                 <p className="text-sm text-gray-600">Total Sessions</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-red-700">{totalTime}</p>
+                <p className="text-2xl font-bold text-red-700">
+                  {totalTime || "0m"}
+                </p>
                 <p className="text-sm text-gray-600">Total Time</p>
               </div>
             </div>

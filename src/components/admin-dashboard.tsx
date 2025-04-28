@@ -1099,11 +1099,6 @@ export default function AdminDashboard() {
                           ? getVolunteerType(volunteer.volunteerInfo.id)
                           : "Unknown"}
                       </TableCell>
-                      <TableCell>
-                        {volunteer.program
-                          .replace(/-/g, " ")
-                          .replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                      </TableCell>
                       <TableCell>{volunteer.location || "N/A"}</TableCell>
                       <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
                       <TableCell>
