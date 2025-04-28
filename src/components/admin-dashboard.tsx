@@ -1244,17 +1244,17 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {completedSessions.map((session) => (
-                    <TableRow key={session.id}>
-                      <TableCell>{session.identifier}</TableCell>
+                  {completedSessions?.map((session) => (
+                    <TableRow key={session?.id}>
+                      <TableCell>{session?.identifier}</TableCell>
                       <TableCell>
-                        {session.volunteerInfo
-                          ? getVolunteerType(session.volunteerInfo.id)
+                        {session?.volunteerInfo
+                          ? getVolunteerType(session?.volunteerInfo?.id)
                           : "Unknown"}
                       </TableCell>
                       <TableCell>
-                        {session.program
-                          .replace(/-/g, " ")
+                        {session?.program
+                          ?.replace(/-/g, " ")
                           .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </TableCell>
                       <TableCell>{session.location || "N/A"}</TableCell>
