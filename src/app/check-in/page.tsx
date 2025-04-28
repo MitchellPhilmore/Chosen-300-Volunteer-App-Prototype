@@ -38,7 +38,6 @@ interface Volunteer {
 
 interface CheckInData {
   identifier: string;
-  program: string;
   checkInTime: string;
   volunteerInfo: {
     id: string;
@@ -52,7 +51,6 @@ export default function CheckIn() {
   const [step, setStep] = useState(1);
   const [identifier, setIdentifier] = useState("");
   const [dailyCode, setDailyCode] = useState("");
-  const [program, setProgram] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [volunteerInfo, setVolunteerInfo] = useState<Volunteer | null>(null);
 
@@ -113,15 +111,7 @@ export default function CheckIn() {
       return;
     }
 
-    // Code is valid, proceed to next step
-    setStep(3);
-    toast.success("Code verified successfully!");
-  };
-
-  const handleProgramSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!program) return;
-
+    // Code is valid, proceed with check-in
     setIsLoading(true);
 
     // Simulate API call to check in volunteer
@@ -129,7 +119,6 @@ export default function CheckIn() {
       // In a real app, you would save this to a database
       const checkInData: CheckInData = {
         identifier,
-        program,
         checkInTime: new Date().toISOString(),
         volunteerInfo: volunteerInfo
           ? {
@@ -151,7 +140,7 @@ export default function CheckIn() {
       );
 
       toast.success("Check-in successful!", {
-        description: `You've checked in to ${program} at ${new Date().toLocaleTimeString()}`,
+        description: `You've checked in at ${new Date().toLocaleTimeString()}`,
       });
 
       setIsLoading(false);
@@ -182,7 +171,7 @@ export default function CheckIn() {
             </Button>
             <div>
               <CardTitle>Volunteer Check-In</CardTitle>
-              <CardDescription>Step {step} of 3</CardDescription>
+              <CardDescription>Step {step} of 2</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -231,10 +220,9 @@ export default function CheckIn() {
                     id="dailyCode"
                     placeholder="Enter 4-digit code"
                     value={dailyCode}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setDailyCode(
                         e.target.value.replace(/\D/g, "").slice(0, 4)
-                        
                       )
                     }
                     type="text"
@@ -246,58 +234,7 @@ export default function CheckIn() {
               <Button
                 type="submit"
                 className="w-full mt-6 bg-red-700 hover:bg-red-800"
-                disabled={dailyCode.length !== 4}
-              onClick={() => {
-                const storedCode = localStorage.getItem("dailyCode");
-                if (storedCode && storedCode === dailyCode) {
-                  toast.success("Check-in code verified successfully!");
-                  setStep(3);
-                } else {
-                  toast.error("Invalid check-in code. Please try again.");
-                }
-              }}
-              >
-                Verify
-              </Button>
-            </form>
-          )}
-
-          {step === 3 && (
-            <form onSubmit={handleProgramSubmit}>
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="program">Select Program</Label>
-                  <Select value={program} onValueChange={setProgram}>
-                    <SelectTrigger id="program">
-                      <SelectValue placeholder="Choose a program" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="meal-service">Meal Service</SelectItem>
-                      <SelectItem value="food-pantry">Food Pantry</SelectItem>
-                      <SelectItem value="clothing-drive">
-                        Clothing Drive
-                      </SelectItem>
-                      <SelectItem value="administrative">
-                        Administrative
-                      </SelectItem>
-                      <SelectItem value="outreach">
-                        Community Outreach
-                      </SelectItem>
-                      <SelectItem value="special-events">
-                        Special Events
-                      </SelectItem>
-                      <SelectItem value="fundraising">Fundraising</SelectItem>
-                      <SelectItem value="facilities">
-                        Facilities Maintenance
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Button
-                type="submit"
-                className="w-full mt-6 bg-red-700 hover:bg-red-800"
-                disabled={!program || isLoading}
+                disabled={dailyCode.length !== 4 || isLoading}
               >
                 {isLoading ? (
                   <>
@@ -315,9 +252,7 @@ export default function CheckIn() {
           <p className="text-sm text-muted-foreground">
             {step === 1
               ? "Please enter your identifier to begin"
-              : step === 2
-              ? "Enter the code provided by your coordinator"
-              : "Select the program you're volunteering for"}
+              : "Enter the code provided by your coordinator"}
           </p>
         </CardFooter>
       </Card>

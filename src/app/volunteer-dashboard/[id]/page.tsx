@@ -71,11 +71,10 @@ interface Volunteer {
 interface VolunteerSession {
   id: string;
   identifier: string;
-  program: string;
+  location: string;
   checkInTime: string;
   checkOutTime?: string | undefined;
   hoursWorked?: string;
-  location: string;
   volunteerInfo: {
     id: string;
     firstName: string;
@@ -99,7 +98,6 @@ export default function VolunteerDashboard() {
   const [loading, setLoading] = useState(true);
   const [adminCode, setAdminCode] = useState("");
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
   const [isCsSession, setIsCsSession] = useState(false);
   const [csReason, setCsReason] = useState("");
@@ -112,12 +110,6 @@ export default function VolunteerDashboard() {
   );
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [rating, setRating] = useState(0);
-  const [comments, setComments] = useState({
-    highlights: "",
-    feedback: "",
-    issues: "",
-    hadFun: false,
-  });
   const [error, setError] = useState<string | null>(null);
   const [completedSessions, setCompletedSessions] = useState<
     VolunteerSession[]
@@ -149,10 +141,8 @@ export default function VolunteerDashboard() {
         // Load active session if it exists
         const activeSessionResult = await getActiveVolunteerSession(id);
         if (activeSessionResult.success && activeSessionResult.data) {
-          const sessionData = {
-            ...activeSessionResult.data,
-            sessionId: activeSessionResult.sessionId,
-          } as VolunteerSession;
+          const sessionData = activeSessionResult.data as VolunteerSession;
+          sessionData.id = activeSessionResult.sessionId;
           setActiveSession(sessionData);
         }
 
@@ -193,11 +183,6 @@ export default function VolunteerDashboard() {
       return;
     }
 
-    if (!selectedProgram) {
-      toast.error("Please select a program");
-      return;
-    }
-
     if (!selectedLocation) {
       toast.error("Please select a location");
       return;
@@ -221,8 +206,8 @@ export default function VolunteerDashboard() {
     try {
       const dailyCodeResult = await getDailyCode();
 
-      // Type guard to ensure data exists and has the code property
-      if (!dailyCodeResult.success || !dailyCodeResult.data?.code) {
+      // Type guard to ensure data exists
+      if (!dailyCodeResult.success || !dailyCodeResult.data) {
         toast.error("Invalid or Expired Code", {
           description:
             dailyCodeResult.message ||
@@ -233,8 +218,10 @@ export default function VolunteerDashboard() {
         return;
       }
 
+      // Use type assertion correctly by first casting to unknown
+      const dailyCode = dailyCodeResult.data as unknown as { code: string };
       const submittedCode = adminCode.padStart(4, "0");
-      const storedCode = dailyCodeResult.data.code.padStart(4, "0");
+      const storedCode = dailyCode.code.padStart(4, "0");
 
       if (submittedCode !== storedCode) {
         toast.error("Invalid check-in code", {
@@ -274,7 +261,6 @@ export default function VolunteerDashboard() {
       // Create check-in record (without id)
       const checkInData: Omit<VolunteerSession, "id"> = {
         identifier: updatedVolunteerData.email || updatedVolunteerData.phone,
-        program: selectedProgram,
         location: selectedLocation,
         checkInTime: new Date().toISOString(),
         volunteerInfo: {
@@ -296,11 +282,7 @@ export default function VolunteerDashboard() {
         setActiveSession(newActiveSession);
 
         toast.success("Check-in successful!", {
-          description: `You've checked in to ${selectedProgram
-            .replace(/-/g, " ")
-            .replace(/\b\w/g, (l: string) =>
-              l.toUpperCase()
-            )} at ${new Date().toLocaleTimeString()}`,
+          description: `You've checked in at ${new Date().toLocaleTimeString()}`,
         });
       } else {
         throw result.error || new Error("Failed to save active session");
@@ -315,7 +297,6 @@ export default function VolunteerDashboard() {
     } finally {
       setIsCheckingIn(false);
       setAdminCode("");
-      setSelectedProgram("");
       setSelectedLocation("");
       setIsCsSession(false);
       setCsReason("");
@@ -341,7 +322,6 @@ export default function VolunteerDashboard() {
     // Prepare the completed session data, excluding the id initially
     const completedSessionData: Omit<VolunteerSession, "id"> = {
       identifier: activeSession.identifier,
-      program: activeSession.program,
       location: activeSession.location,
       checkInTime: activeSession.checkInTime,
       volunteerInfo: activeSession.volunteerInfo,
@@ -349,10 +329,6 @@ export default function VolunteerDashboard() {
       checkOutTime: checkOutTime.toISOString(),
       hoursWorked,
       rating,
-      comments:
-        comments.highlights || comments.feedback || comments.issues
-          ? JSON.stringify(comments)
-          : undefined,
       checkInTimeTimestamp: undefined,
       checkOutTimeTimestamp: undefined,
       createdAt: undefined,
@@ -376,7 +352,6 @@ export default function VolunteerDashboard() {
       if (result.success) {
         setActiveSession(null);
         setRating(0);
-        setComments({ highlights: "", feedback: "", issues: "" });
         setShowRatingDialog(false);
         loadCompletedSessions();
 
@@ -608,12 +583,6 @@ export default function VolunteerDashboard() {
                         Currently Checked In
                       </h3>
                       <p className="text-sm text-green-700">
-                        <span className="font-medium">Program:</span>{" "}
-                        {activeSession.program
-                          .replace(/-/g, " ")
-                          .replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                      </p>
-                      <p className="text-sm text-green-700">
                         <span className="font-medium">Location:</span>{" "}
                         {activeSession.location
                           ? activeSession.location
@@ -670,44 +639,12 @@ export default function VolunteerDashboard() {
                         <DialogHeader>
                           <DialogTitle>Volunteer Check-In</DialogTitle>
                           <DialogDescription>
-                            Please select a program, location (if applicable),
-                            and enter the admin code provided by staff.
+                            Please select a location and enter the admin code
+                            provided by staff.
                           </DialogDescription>
                         </DialogHeader>
 
                         <div className="grid gap-4 py-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="program">Select Program</Label>
-                            <select
-                              id="program"
-                              value={selectedProgram}
-                              onChange={(e) =>
-                                setSelectedProgram(e.target.value)
-                              }
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <option value="">Select a program</option>
-                              <option value="meal-service">Meal Service</option>
-                              <option value="food-pantry">Food Pantry</option>
-                              <option value="clothing-drive">
-                                Clothing Drive
-                              </option>
-                              <option value="administrative">
-                                Administrative
-                              </option>
-                              <option value="outreach">
-                                Community Outreach
-                              </option>
-                              <option value="special-events">
-                                Special Events
-                              </option>
-                              <option value="fundraising">Fundraising</option>
-                              <option value="facilities">
-                                Facilities Maintenance
-                              </option>
-                            </select>
-                          </div>
-
                           <div className="grid gap-2">
                             <Label htmlFor="location">Select Location</Label>
                             <select
@@ -887,9 +824,6 @@ export default function VolunteerDashboard() {
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 font-medium">Date</th>
                       <th className="text-left py-3 px-4 font-medium">
-                        Program
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium">
                         Location
                       </th>
                       <th className="text-left py-3 px-4 font-medium">
@@ -911,11 +845,6 @@ export default function VolunteerDashboard() {
                       <tr key={index} className="border-b hover:bg-gray-50">
                         <td className="py-3 px-4">
                           {formatDate(session.checkInTime)}
-                        </td>
-                        <td className="py-3 px-4">
-                          {session.program
-                            .replace(/-/g, " ")
-                            .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </td>
                         <td className="py-3 px-4">
                           {session.location
@@ -971,7 +900,7 @@ export default function VolunteerDashboard() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex justify-center space-x-2 py-4">
+            <div className="flex justify-center space-x-2 py-6">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Button
                   key={star}
@@ -985,56 +914,6 @@ export default function VolunteerDashboard() {
                   <Star className="h-8 w-8 fill-current" />
                 </Button>
               ))}
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="highlights">Highlights</Label>
-                <Input
-                  id="highlights"
-                  placeholder="What went well during your service?"
-                  value={comments.highlights}
-                  onChange={(e) =>
-                    setComments({ ...comments, highlights: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="feedback">Feedback</Label>
-                <Input
-                  id="feedback"
-                  placeholder="Any suggestions for improvement?"
-                  value={comments.feedback}
-                  onChange={(e) =>
-                    setComments({ ...comments, feedback: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="issues">Issues</Label>
-                <Input
-                  id="issues"
-                  placeholder="Any problems you encountered?"
-                  value={comments.issues}
-                  onChange={(e) =>
-                    setComments({ ...comments, issues: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="hadFun"
-                  checked={comments.hadFun}
-                  onCheckedChange={(checked: boolean | "indeterminate") =>
-                    setComments({ ...comments, hadFun: checked === true })
-                  }
-                  className="border-gray-500 data-[state=checked]:bg-red-800 data-[state=checked]:border-red-800"
-                />
-                <Label htmlFor="hadFun">I had fun volunteering today</Label>
-              </div>
             </div>
 
             <DialogFooter>
