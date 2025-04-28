@@ -296,6 +296,24 @@ export default function Register() {
     }
   };
 
+  // Prevent special characters in name fields
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow letters, spaces, hyphens, apostrophes, and control keys
+    const regex = /^[A-Za-z\s\-']$/;
+    const isControlKey = e.key.length > 1; // Keys like Backspace, Delete, Arrow keys, etc.
+
+    if (!regex.test(e.key) && !isControlKey) {
+      e.preventDefault();
+      toast.error(
+        "Names can only contain letters, spaces, hyphens, and apostrophes",
+        {
+          duration: 2000,
+          id: "name-validation", // Prevent multiple toasts
+        }
+      );
+    }
+  };
+
   const handleVolunteerTypeChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -425,8 +443,38 @@ export default function Register() {
 
   const nextStep = () => {
     if (validateStep()) {
-      setStep(step + 1);
-      window.scrollTo(0, 0);
+      // If moving from step 1 to step 2, check for duplicate volunteer
+      if (step === 1 && (formData.email || formData.phone)) {
+        setIsLoading(true);
+
+        checkDuplicateVolunteer(formData.email, formData.phone)
+          .then(({ isDuplicate, message }) => {
+            if (isDuplicate) {
+              setErrors({
+                ...errors,
+                duplicate:
+                  message || "This volunteer already exists in our system.",
+              });
+              toast.error("Registration failed. " + message);
+              setIsLoading(false);
+              return;
+            }
+
+            // No duplicate found, proceed to next step
+            setStep(step + 1);
+            window.scrollTo(0, 0);
+            setIsLoading(false);
+          })
+          .catch((error) => {
+            console.error("Error checking for duplicate volunteer:", error);
+            toast.error("An error occurred. Please try again.");
+            setIsLoading(false);
+          });
+      } else {
+        // For other steps, simply move forward
+        setStep(step + 1);
+        window.scrollTo(0, 0);
+      }
     }
   };
 
@@ -439,47 +487,17 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate the entire form
-    try {
-      volunteerSchema.parse(formData);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        // Transform Zod errors into a more usable format
-        const errorMap: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          const fieldName = err.path.join(".");
-          errorMap[fieldName] = err.message;
-        });
-
-        // Set the errors
-        setErrors(errorMap);
-
-        // Show the first error as a toast
-        if (error.errors.length > 0) {
-          toast.error(error.errors[0].message);
-        }
-        return;
-      }
+    // Remove the comprehensive validation since we already validate at each step
+    // We'll just validate the current step again to be safe
+    if (!validateStep()) {
+      return;
     }
 
     setIsLoading(true);
 
     try {
-      // Check for duplicate volunteer
-      const { isDuplicate, message } = await checkDuplicateVolunteer(
-        formData.email,
-        formData.phone
-      );
-
-      if (isDuplicate) {
-        setErrors({
-          ...errors,
-          duplicate: message || "This volunteer already exists in our system.",
-        });
-        setIsLoading(false);
-        toast.error("Registration failed. " + message);
-        return;
-      }
+      // Check for duplicate volunteer is now done after step 1
+      // so we don't need to check again here
 
       // Create a unique ID for the volunteer
       const volunteerId = uuidv4();
@@ -535,6 +553,12 @@ export default function Register() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Personal Information</h3>
 
+              {errors.duplicate && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
+                  {errors.duplicate}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">
@@ -545,6 +569,7 @@ export default function Register() {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
+                    onKeyDown={handleNameKeyDown}
                     required
                     className={errors.firstName ? "border-red-500" : ""}
                   />
@@ -564,6 +589,7 @@ export default function Register() {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
+                    onKeyDown={handleNameKeyDown}
                     required
                     className={errors.lastName ? "border-red-500" : ""}
                   />
