@@ -57,10 +57,7 @@ const nameSchema = z
 // Text field validation - more permissive but still restricts special characters
 const textFieldSchema = z
   .string()
-  .regex(
-    /^[A-Za-z0-9\s\-',\.]+$/,
-    "Field can only contain letters, numbers, spaces, commas, periods, hyphens, and apostrophes"
-  );
+  .regex(/^[A-Za-z0-9\s\-',\.()\/&]+$/, "Field contains invalid characters");
 
 // Comprehensive schema for the entire form
 const volunteerSchema = z
@@ -134,7 +131,8 @@ const volunteerSchema = z
 
 // Create validation functions for each step
 function validatePersonalInfo(data: any) {
-  const personalInfoSchema = z
+  // Base schema for all volunteers
+  const baseSchema = z
     .object({
       firstName: nameSchema,
       lastName: nameSchema,
@@ -153,40 +151,30 @@ function validatePersonalInfo(data: any) {
       }
     );
 
-  // Add community service validations if needed
+  // Validate base schema first
+  const baseResult = baseSchema.safeParse(data);
+  if (!baseResult.success) {
+    throw baseResult.error; // Throw the Zod error directly
+  }
+
+  // If community service, add specific validations
   if (data.volunteerType === "communityService") {
-    return z
+    const communityServiceSchema = z
       .object({
-        firstName: nameSchema,
-        lastName: nameSchema,
-        email: emailSchema,
-        phone: phoneSchema,
-        volunteerType: z.string(),
         serviceReason: z
           .string()
           .min(1, "Please select a reason for your community service"),
-        serviceReasonOther: textFieldSchema.optional(),
-        serviceInstitution: textFieldSchema.min(
-          1,
-          "Please enter the institution requiring your service"
-        ),
+        serviceReasonOther: z.string().optional(), // Validate presence later
+        serviceInstitution: z
+          .string()
+          .min(1, "Please enter the institution requiring your service"),
       })
       .refine(
-        (data) => {
-          // At least email or phone must be provided
-          return data.email.length > 0 || data.phone.length > 0;
-        },
-        {
-          message: "Please provide either an email or phone number",
-          path: ["email"],
-        }
-      )
-      .refine(
-        (data) => {
+        (csData) => {
           // If service reason is "other", must provide detail
-          if (data.serviceReason === "other") {
+          if (csData.serviceReason === "other") {
             return (
-              data.serviceReasonOther && data.serviceReasonOther.length > 0
+              csData.serviceReasonOther && csData.serviceReasonOther.length > 0
             );
           }
           return true;
@@ -195,11 +183,50 @@ function validatePersonalInfo(data: any) {
           message: "Please specify your reason for community service",
           path: ["serviceReasonOther"],
         }
-      )
-      .parse(data);
+      );
+
+    // Validate community service specific fields (reason, institution presence)
+    const csResult = communityServiceSchema.safeParse(data);
+    if (!csResult.success) {
+      throw csResult.error; // Throw the Zod error
+    }
+
+    // Now, specifically validate the text fields for invalid characters
+    if (data.serviceReason === "other" && data.serviceReasonOther) {
+      const reasonOtherResult = textFieldSchema.safeParse(
+        data.serviceReasonOther
+      );
+      if (!reasonOtherResult.success) {
+        // Manually create a ZodError for better integration with existing error handling
+        throw new z.ZodError([
+          {
+            code: z.ZodIssueCode.custom,
+            path: ["serviceReasonOther"],
+            message: "Reason contains invalid characters",
+          },
+        ]);
+      }
+    }
+
+    if (data.serviceInstitution) {
+      const institutionResult = textFieldSchema.safeParse(
+        data.serviceInstitution
+      );
+      if (!institutionResult.success) {
+        // Manually create a ZodError
+        throw new z.ZodError([
+          {
+            code: z.ZodIssueCode.custom,
+            path: ["serviceInstitution"],
+            message: "Institution name contains invalid characters",
+          },
+        ]);
+      }
+    }
   }
 
-  return personalInfoSchema.parse(data);
+  // If validation passed or not community service, return the parsed base data
+  return baseResult.data;
 }
 
 function validateSiteSelection(data: any) {

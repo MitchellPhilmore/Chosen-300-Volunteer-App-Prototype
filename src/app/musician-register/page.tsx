@@ -96,6 +96,24 @@ export default function MusicianRegistration() {
     }
   };
 
+  // Prevent special characters in name fields
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow letters, spaces, hyphens, apostrophes, and control keys
+    const regex = /^[A-Za-z\s\-']$/;
+    const isControlKey = e.key.length > 1; // Keys like Backspace, Delete, Arrow keys, etc.
+
+    if (!regex.test(e.key) && !isControlKey) {
+      e.preventDefault();
+      toast.error(
+        "Names can only contain letters, spaces, hyphens, and apostrophes",
+        {
+          duration: 2000,
+          id: "name-validation", // Prevent multiple toasts
+        }
+      );
+    }
+  };
+
   const handleInstrumentChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -150,7 +168,7 @@ export default function MusicianRegistration() {
     const newErrors: Record<string, string> = {};
 
     try {
-      // Validate first name
+      // Validate first name using the nameSchema
       nameSchema.parse(formData.firstName);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -159,7 +177,7 @@ export default function MusicianRegistration() {
     }
 
     try {
-      // Validate last name
+      // Validate last name using the nameSchema
       nameSchema.parse(formData.lastName);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -331,6 +349,7 @@ export default function MusicianRegistration() {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
+                    onKeyDown={handleNameKeyDown}
                     required
                     className={errors.firstName ? "border-red-500" : ""}
                   />
@@ -350,6 +369,7 @@ export default function MusicianRegistration() {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
+                    onKeyDown={handleNameKeyDown}
                     required
                     className={errors.lastName ? "border-red-500" : ""}
                   />

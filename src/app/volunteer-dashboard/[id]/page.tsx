@@ -662,7 +662,7 @@ export default function VolunteerDashboard() {
                               <option value="spring garden">
                                 SpringGarden
                               </option>
-                              <option value="">Ambler</option>
+                              <option value="ambler">Ambler</option>
                               <option value="remote">Remote/Other</option>
                             </select>
                           </div>

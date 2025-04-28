@@ -18,20 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-
-const INSTRUMENTS = [
-  { id: "piano", label: "Piano" },
-  { id: "guitar", label: "Guitar" },
-  { id: "drums", label: "Drums" },
-  { id: "bass", label: "Bass" },
-  { id: "vocals", label: "Vocals" },
-  { id: "violin", label: "Violin" },
-  { id: "saxophone", label: "Saxophone" },
-  { id: "trumpet", label: "Trumpet" },
-  { id: "flute", label: "Flute" },
-  { id: "clarinet", label: "Clarinet" },
-  { id: "other", label: "Other" },
-];
+;
 
 export default function VolunteerRegistration() {
   const router = useRouter();
