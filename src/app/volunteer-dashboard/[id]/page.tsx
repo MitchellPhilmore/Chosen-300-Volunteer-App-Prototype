@@ -178,7 +178,12 @@ export default function VolunteerDashboard() {
 
   const handleCheckIn = async () => {
     if (!volunteer) return;
-    if (!adminCode) {
+
+    // Admin code only required for CS volunteers or CS sessions
+    if (
+      (volunteer.volunteerType === "communityService" || isCsSession) &&
+      !adminCode
+    ) {
       toast.error("Please enter the admin code");
       return;
     }
@@ -204,36 +209,39 @@ export default function VolunteerDashboard() {
     setIsCheckingIn(true);
 
     try {
-      const dailyCodeResult = await getDailyCode();
+      // Only validate code for CS volunteers or CS sessions
+      if (volunteer.volunteerType === "communityService" || isCsSession) {
+        const dailyCodeResult = await getDailyCode();
 
-      // Type guard to ensure data exists
-      if (!dailyCodeResult.success || !dailyCodeResult.data) {
-        toast.error("Invalid or Expired Code", {
-          description:
-            dailyCodeResult.message ||
-            "Could not verify check-in code. Please check with your coordinator.",
-        });
-        setAdminCode("");
-        setIsCheckingIn(false);
-        return;
+        // Type guard to ensure data exists
+        if (!dailyCodeResult.success || !dailyCodeResult.data) {
+          toast.error("Invalid or Expired Code", {
+            description:
+              dailyCodeResult.message ||
+              "Could not verify check-in code. Please check with your coordinator.",
+          });
+          setAdminCode("");
+          setIsCheckingIn(false);
+          return;
+        }
+
+        // Use type assertion correctly by first casting to unknown
+        const dailyCode = dailyCodeResult.data as unknown as { code: string };
+        const submittedCode = adminCode.padStart(4, "0");
+        const storedCode = dailyCode.code.padStart(4, "0");
+
+        if (submittedCode !== storedCode) {
+          toast.error("Invalid check-in code", {
+            description:
+              "Please check with your coordinator for the correct code.",
+          });
+          setAdminCode("");
+          setIsCheckingIn(false);
+          return;
+        }
       }
 
-      // Use type assertion correctly by first casting to unknown
-      const dailyCode = dailyCodeResult.data as unknown as { code: string };
-      const submittedCode = adminCode.padStart(4, "0");
-      const storedCode = dailyCode.code.padStart(4, "0");
-
-      if (submittedCode !== storedCode) {
-        toast.error("Invalid check-in code", {
-          description:
-            "Please check with your coordinator for the correct code.",
-        });
-        setAdminCode("");
-        setIsCheckingIn(false);
-        return;
-      }
-
-      // --- Code is valid, proceed with check-in logic --- //
+      // --- Code is valid or not required, proceed with check-in logic --- //
 
       let updatedVolunteerData = { ...volunteer };
       if (isCsSession && volunteer.volunteerType !== "communityService") {
@@ -667,21 +675,27 @@ export default function VolunteerDashboard() {
                             </select>
                           </div>
 
-                          <div className="grid gap-2">
-                            <Label htmlFor="adminCode">Admin Code</Label>
-                            <Input
-                              id="adminCode"
-                              value={adminCode}
-                              onChange={(e) =>
-                                setAdminCode(
-                                  e.target.value.replace(/\D/g, "").slice(0, 4)
-                                )
-                              }
-                              placeholder="Enter the code provided by staff"
-                              type="text"
-                              maxLength={4}
-                            />
-                          </div>
+                          {/* Only show admin code for CS volunteers or CS sessions */}
+                          {(volunteer.volunteerType === "communityService" ||
+                            isCsSession) && (
+                            <div className="grid gap-2">
+                              <Label htmlFor="adminCode">Admin Code</Label>
+                              <Input
+                                id="adminCode"
+                                value={adminCode}
+                                onChange={(e) =>
+                                  setAdminCode(
+                                    e.target.value
+                                      .replace(/\D/g, "")
+                                      .slice(0, 4)
+                                  )
+                                }
+                                placeholder="Enter the code provided by staff"
+                                type="text"
+                                maxLength={4}
+                              />
+                            </div>
+                          )}
 
                           <div className="flex items-center space-x-2 pt-2">
                             <Checkbox
