@@ -4,7 +4,7 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, Lock, LogOut } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b bg-white">
       <div className="container flex h-16 items-center justify-end">
         <div className="hidden md:flex md:items-center md:space-x-4">
-          {isAdminLoggedIn ? (
+          {isAdminLoggedIn && (
             <Button
               variant="outline"
               onClick={handleLogout}
@@ -41,16 +41,6 @@ export default function Navbar() {
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
-          ) : (
-            <Link href="/admin/login" passHref>
-              <Button
-                variant="outline"
-                className="border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800"
-              >
-                <Lock className="mr-2 h-4 w-4" />
-                Admin Login
-              </Button>
-            </Link>
           )}
         </div>
 
@@ -62,7 +52,7 @@ export default function Navbar() {
           </SheetTrigger>
           <SheetContent side="right" className="w-[240px] sm:w-[300px]">
             <div className="flex flex-col space-y-4 mt-8">
-              {isAdminLoggedIn ? (
+              {isAdminLoggedIn && (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -74,17 +64,6 @@ export default function Navbar() {
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </Button>
-              ) : (
-                <Link href="/admin/login" passHref>
-                  <Button
-                    variant="outline"
-                    className="border-red-700 text-red-700 hover:bg-red-50 hover:text-red-800 w-full justify-start"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    <Lock className="mr-2 h-4 w-4" />
-                    Admin Login
-                  </Button>
-                </Link>
               )}
               <Link href="/" onClick={() => setIsOpen(false)} passHref>
                 <Button variant="ghost" className="w-full justify-start">
