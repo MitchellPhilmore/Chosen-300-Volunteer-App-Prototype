@@ -676,9 +676,10 @@ export default function VolunteerDashboard() {
                                 West Philadelphia
                               </option>
                               <option value="spring garden">
-                                SpringGarden
+                                Spring Garden
                               </option>
                               <option value="ambler">Ambler</option>
+                              <option value="reading">Reading</option>
                               <option value="remote">Remote/Other</option>
                             </select>
                           </div>

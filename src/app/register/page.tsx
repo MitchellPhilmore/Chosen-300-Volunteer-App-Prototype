@@ -834,6 +834,20 @@ export default function Register() {
                       Ambler
                     </Label>
                   </div>
+
+                  <div
+                    className={`flex items-center space-x-2 border p-4 rounded-md ${
+                      errors.site ? "border-red-500" : ""
+                    }`}
+                  >
+                    <RadioGroupItem value="reading" id="reading" />
+                    <Label
+                      htmlFor="reading"
+                      className="font-medium cursor-pointer"
+                    >
+                      Reading
+                    </Label>
+                  </div>
                 </RadioGroup>
                 {errors.site && (
                   <p className="text-red-500 text-xs mt-1">{errors.site}</p>
