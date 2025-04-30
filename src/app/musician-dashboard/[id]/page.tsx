@@ -217,6 +217,12 @@ export default function MusicianDashboard({
         toast.success("Signed in successfully!", {
           description: `Activity: ${selectedActivity}`,
         });
+
+        // Redirect to home page after check-in
+        setTimeout(() => {
+          toast.info("Redirecting to home page...");
+          router.push("/");
+        }, 2000); // Give time for the success toast to be seen
       } else {
         toast.error("Failed to sign in. Please try again.");
       }

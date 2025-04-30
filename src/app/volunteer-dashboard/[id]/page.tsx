@@ -293,13 +293,11 @@ export default function VolunteerDashboard() {
           description: `You've checked in at ${new Date().toLocaleTimeString()}`,
         });
 
-        // Redirect normal volunteers to home page after check-in
-        if (!isCsSession && volunteer.volunteerType !== "communityService") {
-          setTimeout(() => {
-            toast.info("Redirecting to home page...");
-            router.push("/");
-          }, 2000); // Give time for the success toast to be seen
-        }
+        // Redirect all volunteers to home page after check-in
+        setTimeout(() => {
+          toast.info("Redirecting to home page...");
+          router.push("/");
+        }, 2000); // Give time for the success toast to be seen
       } else {
         throw result.error || new Error("Failed to save active session");
       }
