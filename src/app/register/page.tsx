@@ -41,8 +41,10 @@ const emailSchema = z
   .or(z.string().length(0));
 const phoneSchema = z
   .string()
-  .min(10, "Phone number must be at least 10 digits")
-  .regex(/^\d+$/, "Phone number must contain only digits")
+  .regex(
+    /^\d{10}$/,
+    "Phone number must be exactly 10 digits (e.g., 2156678899)"
+  )
   .or(z.string().length(0));
 
 // Name validation - allow letters, spaces, hyphens, and apostrophes
@@ -64,8 +66,12 @@ const volunteerSchema = z
   .object({
     firstName: nameSchema,
     lastName: nameSchema,
-    email: emailSchema,
-    phone: phoneSchema,
+    email: emailSchema.refine((value) => value.length > 0, {
+      message: "Email address is required",
+    }),
+    phone: phoneSchema.refine((value) => value.length > 0, {
+      message: "Phone number is required",
+    }),
     volunteerType: z.string(),
     serviceReason: z.string().optional(),
     serviceReasonOther: textFieldSchema.optional(),
@@ -76,16 +82,6 @@ const volunteerSchema = z
     }),
     waiverSignature: z.string().min(1, "You must sign the waiver to continue"),
   })
-  .refine(
-    (data) => {
-      // At least email or phone must be provided
-      return data.email.length > 0 || data.phone.length > 0;
-    },
-    {
-      message: "Please provide either an email or phone number",
-      path: ["email"],
-    }
-  )
   .refine(
     (data) => {
       // If volunteer type is community service, must have service reason
@@ -132,24 +128,17 @@ const volunteerSchema = z
 // Create validation functions for each step
 function validatePersonalInfo(data: any) {
   // Base schema for all volunteers
-  const baseSchema = z
-    .object({
-      firstName: nameSchema,
-      lastName: nameSchema,
-      email: emailSchema,
-      phone: phoneSchema,
-      volunteerType: z.string(),
-    })
-    .refine(
-      (data) => {
-        // At least email or phone must be provided
-        return data.email.length > 0 || data.phone.length > 0;
-      },
-      {
-        message: "Please provide either an email or phone number",
-        path: ["email"],
-      }
-    );
+  const baseSchema = z.object({
+    firstName: nameSchema,
+    lastName: nameSchema,
+    email: emailSchema.refine((value) => value.length > 0, {
+      message: "Email address is required",
+    }),
+    phone: phoneSchema.refine((value) => value.length > 0, {
+      message: "Phone number is required",
+    }),
+    volunteerType: z.string(),
+  });
 
   // Validate base schema first
   const baseResult = baseSchema.safeParse(data);
@@ -308,10 +297,20 @@ export default function Register() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+
+    // Special handling for phone numbers to strip non-digits and limit to 10 digits
+    if (name === "phone") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: digitsOnly,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
 
     // Clear error for the field being changed
     if (errors[name]) {
@@ -470,8 +469,26 @@ export default function Register() {
 
   const nextStep = () => {
     if (validateStep()) {
-      // If moving from step 1 to step 2, check for duplicate volunteer
-      if (step === 1 && (formData.email || formData.phone)) {
+      // Ensure BOTH email AND phone are provided before proceeding
+      if (step === 1) {
+        if (!formData.email || !formData.phone) {
+          if (!formData.email) {
+            setErrors((prev) => ({
+              ...prev,
+              email: "Email address is required",
+            }));
+          }
+          if (!formData.phone) {
+            setErrors((prev) => ({
+              ...prev,
+              phone: "Phone number is required",
+            }));
+          }
+          toast.error("Please provide both email and phone number");
+          return;
+        }
+
+        // Now check for duplicate volunteer
         setIsLoading(true);
 
         checkDuplicateVolunteer(formData.email, formData.phone)
@@ -630,7 +647,10 @@ export default function Register() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="email">
+                    Email Address
+                    <span className="text-red-700">*</span>
+                  </Label>
                   <Input
                     id="email"
                     name="email"
@@ -638,6 +658,7 @@ export default function Register() {
                     value={formData.email}
                     onChange={handleChange}
                     className={errors.email ? "border-red-500" : ""}
+                    required={true}
                   />
                   {errors.email && (
                     <p className="text-red-500 text-xs mt-1">{errors.email}</p>
@@ -645,14 +666,18 @@ export default function Register() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone">
+                    Phone Number
+                    <span className="text-red-700">*</span>
+                  </Label>
                   <Input
                     id="phone"
                     type="tel"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    required
+                    required={true}
+                    placeholder="10 digits only (e.g., 2156678899)"
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && (
@@ -660,6 +685,10 @@ export default function Register() {
                   )}
                 </div>
               </div>
+
+              <p className="text-sm text-gray-500 italic mt-1">
+                Both email and phone are required for registration.
+              </p>
 
               {formData.volunteerType === "communityService" && (
                 <div className="space-y-4 border-t pt-4 mt-4">
