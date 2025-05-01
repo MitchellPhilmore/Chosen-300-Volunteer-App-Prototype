@@ -48,6 +48,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Volunteer {
   id: string;
@@ -670,15 +677,15 @@ export default function VolunteerDashboard() {
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <option value="">Select a location</option>
-                              <option value="west philadelphia">
+                              <option value="West Philadelphia">
                                 West Philadelphia
                               </option>
-                              <option value="spring garden">
+                              <option value="Spring Garden">
                                 Spring Garden
                               </option>
-                              <option value="ambler">Ambler</option>
-                              <option value="reading">Reading</option>
-                              <option value="remote">Remote/Other</option>
+                              <option value="Ambler">Ambler</option>
+                              <option value="Reading">Reading</option>
+                              <option value="Remote/Other">Remote/Other</option>
                             </select>
                           </div>
 
@@ -733,15 +740,23 @@ export default function VolunteerDashboard() {
                                     Reason for Service{" "}
                                     <span className="text-red-700">*</span>
                                   </Label>
-                                  <Input
-                                    id="csReasonDialog"
+                                  <Select
                                     value={csReason}
-                                    onChange={(e) =>
-                                      setCsReason(e.target.value)
-                                    }
-                                    placeholder="e.g., Court ordered, Employer, or School requirement"
-                                    required
-                                  />
+                                    onValueChange={setCsReason}
+                                  >
+                                    <SelectTrigger id="csReasonDialog">
+                                      <SelectValue placeholder="Select a reason" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="court-ordered">
+                                        Court ordered
+                                      </SelectItem>
+                                      <SelectItem value="school">
+                                        School
+                                      </SelectItem>
+                                      <SelectItem value="work">Work</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor="csInstitutionDialog">
