@@ -176,7 +176,7 @@ export default function SignIn() {
                   <Label htmlFor="phone">Phone Number or Email</Label>
                   <Input
                     id="phone"
-                    type="tel"
+                    type="text"
                     placeholder="Enter your phone number or email"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
