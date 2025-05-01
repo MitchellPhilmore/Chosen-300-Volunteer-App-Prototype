@@ -51,7 +51,10 @@ const emailSchema = z
 
 const phoneSchema = z
   .string()
-  .regex(/^\d+$/, "Phone number must contain only digits")
+  .regex(
+    /^\d{10}$/,
+    "Phone number must be exactly 10 digits (e.g., 2156678899)"
+  )
   .or(z.string().length(0));
 
 const textFieldSchema = z
@@ -79,12 +82,24 @@ export default function MusicianRegistration() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+
+    // Special handling for phone numbers to strip non-digits and limit to 10 digits
+    if (name === "phone") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: digitsOnly,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
 
     // Clear error for the field being changed
     if (errors[name]) {
@@ -383,7 +398,7 @@ export default function MusicianRegistration() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="email">Email Address <span className="text-red-700">*</span></Label>
                   <Input
                     id="email"
                     name="email"
@@ -398,12 +413,14 @@ export default function MusicianRegistration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone">Phone Number <span className="text-red-700">*</span></Label>
                   <Input
                     id="phone"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
+                    required
+                    placeholder="10 digits only (e.g., 2156678899)"
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && (
