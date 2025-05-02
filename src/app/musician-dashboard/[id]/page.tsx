@@ -222,7 +222,7 @@ export default function MusicianDashboard({
         setTimeout(() => {
           toast.info("Redirecting to home page...");
           router.push("/");
-        }, 2000); // Give time for the success toast to be seen
+        }, 4000) // Give time for the success toast to be seen
       } else {
         toast.error("Failed to sign in. Please try again.");
       }
@@ -476,9 +476,11 @@ export default function MusicianDashboard({
                     <SelectValue placeholder="Choose an activity..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="rehearsal">Saturday Worship</SelectItem>
-                    <SelectItem value="performance">Evening Meal</SelectItem>
-                    <SelectItem value="meeting">Special Event</SelectItem>
+                    <SelectItem value="worship leader">
+                      Worship Leader
+                    </SelectItem>
+                    <SelectItem value="performance">Performance</SelectItem>
+                    <SelectItem value="meeting">Meeting</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -531,61 +533,6 @@ export default function MusicianDashboard({
           </CardContent>
         </Card>
 
-        {/* Volunteer Registration Card (Conditional) */}
-        {!isAlsoVolunteer && (
-          <Card className="max-w-4xl mx-auto border-none shadow-lg mb-6">
-            <CardHeader>
-              <CardTitle>Expand Your Impact</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p>
-                Interested in helping out beyond music? Register as a general
-                volunteer or for community service hours.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <motion.div
-                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-                  className="flex-1"
-                >
-                  <Button
-                    onClick={() => handleRegisterAsVolunteer(false)}
-                    disabled={isSubmitting}
-                    variant="outline"
-                    className="w-full border-red-700 text-red-700 hover:bg-red-50"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="mr-2 h-4 w-4" />
-                    )}
-                    Register as Volunteer
-                  </Button>
-                </motion.div>
-                <motion.div
-                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-                  className="flex-1"
-                >
-                  <Button
-                    onClick={() => handleRegisterAsVolunteer(true)}
-                    disabled={isSubmitting}
-                    variant="outline"
-                    className="w-full border-red-700 text-red-700 hover:bg-red-50"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Heart className="mr-2 h-4 w-4" />
-                    )}
-                    Register for Community Service
-                  </Button>
-                </motion.div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* History Card */}
         <Card className="max-w-4xl mx-auto border-none shadow-lg">
           <CardHeader>
@@ -628,16 +575,8 @@ export default function MusicianDashboard({
                       </div>
                       <div className="text-sm text-gray-600 text-right">
                         <p>
-                          In:{" "}
+                          Checked in at:{" "}
                           {new Date(session.signInTime).toLocaleTimeString()}
-                        </p>
-                        <p>
-                          Out:{" "}
-                          {session.checkOutTime
-                            ? new Date(
-                                session.checkOutTime
-                              ).toLocaleTimeString()
-                            : "N/A"}
                         </p>
                       </div>
                     </div>

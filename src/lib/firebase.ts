@@ -486,7 +486,7 @@ export const getCompletedMusicianSessions = async (
     const q = query(
       collection(db, COMPLETED_MUSICIAN_SESSIONS_COLLECTION),
       where("musicianId", "==", musicianId),
-      orderBy("checkOutTimeTimestamp", "desc"), // Order by checkout time, descending
+     // Order by checkout time, descending
       limit(count)
     );
     const querySnapshot = await getDocs(q);

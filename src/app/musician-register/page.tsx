@@ -30,7 +30,7 @@ import {
 import { SignatureMaker } from "@docuseal/signature-maker-react";
 
 const INSTRUMENTS = [
-  { id: "worship", label: "Worship" },
+  { id: "worship leader", label: "Worship Leader" },
   { id: "drums", label: "Drums" },
   { id: "keyboard", label: "Keyboard" },
 ];
@@ -457,22 +457,7 @@ export default function MusicianRegistration() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="availability">Availability</Label>
-                <Input
-                  id="availability"
-                  name="availability"
-                  value={formData.availability}
-                  onChange={handleChange}
-                  placeholder="e.g., Weekends, Wednesday evenings, etc."
-                  className={errors.availability ? "border-red-500" : ""}
-                />
-                {errors.availability && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.availability}
-                  </p>
-                )}
-              </div>
+           
 
               <div className="space-y-2">
                 <Label>Volunteer Waiver and Release of Liability</Label>
