@@ -286,27 +286,69 @@ export default function VolunteerDashboard() {
         isCommunityServiceSession: isCsSession,
       };
 
-      const result = await saveActiveVolunteerSession(checkInData);
+      // For normal volunteers, automatically create a completed session with 4-hour duration
+      if (
+        updatedVolunteerData.volunteerType !== "communityService" &&
+        !isCsSession
+      ) {
+        const checkInTime = new Date();
+        const checkOutTime = new Date(checkInTime);
+        checkOutTime.setHours(checkOutTime.getHours() + 4);
 
-      if (result.success && result.sessionId) {
-        // Construct the full session object for local state
-        const newActiveSession: VolunteerSession = {
+        const hoursWorked = "4.00"; // Fixed 4 hours
+
+        const completedSessionData: Omit<VolunteerSession, "id"> = {
           ...checkInData,
-          id: result.sessionId,
+          checkOutTime: checkOutTime.toISOString(),
+          hoursWorked,
+          rating: 5, // Default rating
         };
-        setActiveSession(newActiveSession);
 
-        toast.success("Check-in successful!", {
-          description: `You've checked in at ${new Date().toLocaleTimeString()}`,
-        });
+        // Generate a unique session ID
+        const sessionId = `${updatedVolunteerData.id}_${Date.now()}`;
 
-        // Redirect all volunteers to home page after check-in
-        setTimeout(() => {
-          toast.info("Redirecting to home page...");
-          router.push("/");
-        }, 2000); // Give time for the success toast to be seen
+        // Save completed session directly
+        const result = await completeVolunteerSession(
+          sessionId,
+          completedSessionData
+        );
+
+        if (result.success) {
+          toast.success("Check-in successful!", {
+            description: `You've been automatically checked in for 4 hours.`,
+          });
+
+          // Reload completed sessions
+          await loadCompletedSessions();
+
+          // Redirect to home page
+          setTimeout(() => {
+            toast.info("Redirecting to home page...");
+            router.push("/");
+          }, 4000);
+        } else {
+          throw result.error || new Error("Failed to save session");
+        }
       } else {
-        throw result.error || new Error("Failed to save active session");
+        // For CS volunteers, continue with the normal active session flow
+        const result = await saveActiveVolunteerSession(checkInData);
+
+        if (result.success && result.sessionId) {
+          // Construct the full session object for local state
+          const newActiveSession: VolunteerSession = {
+            ...checkInData,
+            id: result.sessionId,
+          };
+          setActiveSession(newActiveSession);
+
+          toast.success("Check-in successful!", {
+            description: `You've checked in at ${new Date().toLocaleTimeString()}`,
+          });
+
+          // For CS volunteers, we keep them on the dashboard to checkout later
+        } else {
+          throw result.error || new Error("Failed to save active session");
+        }
       }
     } catch (error) {
       console.error("Error during check-in:", error);
@@ -626,17 +668,21 @@ export default function VolunteerDashboard() {
                       </p>
                     </div>
 
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Button
-                        onClick={handleCheckOut}
-                        className="w-full bg-red-700 hover:bg-red-800"
+                    {/* Only show check-out button for community service volunteers */}
+                    {(volunteer.volunteerType === "communityService" ||
+                      activeSession.isCommunityServiceSession) && (
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        Check Out Now
-                      </Button>
-                    </motion.div>
+                        <Button
+                          onClick={handleCheckOut}
+                          className="w-full bg-red-700 hover:bg-red-800"
+                        >
+                          Check Out Now
+                        </Button>
+                      </motion.div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -726,6 +772,20 @@ export default function VolunteerDashboard() {
                               This session is for Community Service hours
                             </Label>
                           </div>
+
+                          {/* Add notice about automatic checkout for normal volunteers */}
+                          {volunteer?.volunteerType !== "communityService" &&
+                            !isCsSession && (
+                              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <p className="text-sm text-blue-700">
+                                  <span className="font-medium">Note:</span> As
+                                  a regular volunteer, your session will be
+                                  automatically completed with a 4-hour
+                                  duration. You don't need to check out
+                                  manually.
+                                </p>
+                              </div>
+                            )}
 
                           {isCsSession &&
                             volunteer?.volunteerType !== "communityService" && (
