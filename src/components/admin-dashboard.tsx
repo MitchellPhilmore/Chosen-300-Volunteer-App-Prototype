@@ -503,7 +503,7 @@ export default function AdminDashboard() {
     const headers = [
       "Volunteer Name",
       "Volunteer Type",
-      "Program",
+      "Email",
       "Location",
       "Check-in Time",
       "Check-out Time",
@@ -517,7 +517,10 @@ export default function AdminDashboard() {
       session.volunteerInfo
         ? getVolunteerType(session.volunteerInfo.id)
         : "Unknown",
-    
+      session.volunteerInfo
+        ? registeredVolunteers.find((v) => v.id === session.volunteerInfo?.id)
+            ?.email || "No email"
+        : "Unknown",
       session.location || "N/A",
       formatTime(session.checkInTime),
       session.checkOutTime ? formatTime(session.checkOutTime) : "",
@@ -1081,10 +1084,10 @@ export default function AdminDashboard() {
                   <TableRow>
                     <TableHead>Volunteer</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Program</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Location</TableHead>
-                    <TableHead>Check-in Time</TableHead>
-                    <TableHead>Duration</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Hours</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1097,8 +1100,15 @@ export default function AdminDashboard() {
                           ? getVolunteerType(volunteer.volunteerInfo.id)
                           : "Unknown"}
                       </TableCell>
+                      <TableCell>
+                        {volunteer.volunteerInfo
+                          ? registeredVolunteers.find(
+                              (v) => v.id === volunteer.volunteerInfo?.id
+                            )?.email || "No email"
+                          : "Unknown"}
+                      </TableCell>
                       <TableCell>{volunteer.location || "N/A"}</TableCell>
-                      <TableCell>{formatTime(volunteer.checkInTime)}</TableCell>
+                      <TableCell>{formatDate(volunteer.checkInTime)}</TableCell>
                       <TableCell>
                         {volunteer.checkInTime
                           ? `${Math.round(
@@ -1229,7 +1239,7 @@ export default function AdminDashboard() {
                   <TableRow>
                     <TableHead>Volunteer</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Program</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Hours</TableHead>
@@ -1246,9 +1256,11 @@ export default function AdminDashboard() {
                           : "Unknown"}
                       </TableCell>
                       <TableCell>
-                        {session?.program
-                          ?.replace(/-/g, " ")
-                          .replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                        {session?.volunteerInfo
+                          ? registeredVolunteers.find(
+                              (v) => v.id === session?.volunteerInfo?.id
+                            )?.email || "No email"
+                          : "Unknown"}
                       </TableCell>
                       <TableCell>{session.location || "N/A"}</TableCell>
                       <TableCell>{formatDate(session.checkInTime)}</TableCell>
