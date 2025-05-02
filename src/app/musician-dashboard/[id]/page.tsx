@@ -476,8 +476,8 @@ export default function MusicianDashboard({
                     <SelectValue placeholder="Choose an activity..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="worship leader">
-                      Worship Leader
+                    <SelectItem value="Sunday Worship">
+                      Sunday Worship
                     </SelectItem>
                     <SelectItem value="performance">Performance</SelectItem>
                     <SelectItem value="meeting">Meeting</SelectItem>
