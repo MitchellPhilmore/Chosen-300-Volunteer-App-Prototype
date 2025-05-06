@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Music, LogIn } from "lucide-react";
+import { ArrowLeft, Music, LogIn, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -17,38 +17,70 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getMusicianByPhone, getMusicianByEmail } from "@/lib/firebase";
 
 export default function MusicianSignIn() {
   const router = useRouter();
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [loginInput, setLoginInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const isEmail = (input: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!phoneNumber) {
-      toast.error("Please enter your phone number");
+    if (!loginInput) {
+      toast.error("Please enter your phone number or email");
       return;
     }
 
-    // Normalize phone number (remove non-digits)
-    const normalizedPhone = phoneNumber.replace(/\D/g, "");
+    setIsLoading(true);
 
-    // Get musicians from localStorage
-    const musicians = JSON.parse(localStorage.getItem("musicians") || "[]");
-    const musician = musicians.find(
-      (m: any) => m.phone.replace(/\D/g, "") === normalizedPhone
-    );
+    try {
+      let musicianResult;
 
-    if (!musician) {
-      toast.error("No musician found with this phone number");
-      return;
+      // Check if input is email or phone
+      if (isEmail(loginInput)) {
+        // Search by email
+        musicianResult = await getMusicianByEmail(loginInput);
+      } else {
+        // Normalize phone number (remove non-digits)
+        const normalizedPhone = loginInput.replace(/\D/g, "");
+        // Search by phone
+        musicianResult = await getMusicianByPhone(normalizedPhone);
+      }
+
+      const musician =
+        musicianResult.success &&
+        musicianResult.data &&
+        musicianResult.data.length > 0
+          ? musicianResult.data[0]
+          : null;
+
+      if (!musician) {
+        toast.error(
+          `No musician found with this ${
+            isEmail(loginInput) ? "email" : "phone number"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Store current musician ID in localStorage for session management
+      localStorage.setItem("currentMusicianId", musician.id);
+
+      toast.success("Signed in successfully!");
+      router.push(`/musician-dashboard/${musician.id}`);
+    } catch (error) {
+      console.error("Error during sign in:", error);
+      toast.error("An error occurred during sign in. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    // Store current musician ID in localStorage for session management
-    localStorage.setItem("currentMusicianId", musician.id);
-
-    toast.success("Signed in successfully!");
-    router.push(`/musician-dashboard/${musician.id}`);
   };
 
   return (
@@ -69,7 +101,7 @@ export default function MusicianSignIn() {
               <div>
                 <CardTitle>Musician Sign In</CardTitle>
                 <CardDescription>
-                  Sign in with your phone number
+                  Sign in with your phone number or email
                 </CardDescription>
               </div>
             </div>
@@ -77,28 +109,34 @@ export default function MusicianSignIn() {
           <CardContent>
             <form onSubmit={handleSignIn} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="loginInput">Phone Number or Email</Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  id="loginInput"
+                  type="text"
+                  placeholder="Enter your phone number or email"
+                  value={loginInput}
+                  onChange={(e) => setLoginInput(e.target.value)}
                   required
+                  disabled={isLoading}
                 />
               </div>
 
               <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                whileTap={{ scale: isLoading ? 1 : 0.98 }}
               >
                 <Button
                   type="submit"
                   className="w-full bg-red-700 hover:bg-red-800"
+                  disabled={isLoading}
                 >
                   <div className="flex items-center justify-center space-x-3">
-                    <LogIn className="h-6 w-6" />
-                    <span>Sign In</span>
+                    {isLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <LogIn className="h-6 w-6" />
+                    )}
+                    <span>{isLoading ? "Signing In..." : "Sign In"}</span>
                   </div>
                 </Button>
               </motion.div>

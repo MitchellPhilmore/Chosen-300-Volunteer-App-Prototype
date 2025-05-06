@@ -24,33 +24,55 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getVolunteerByPhone, getMusicianByPhone } from "@/lib/firebase";
+import {
+  getVolunteerByPhone,
+  getMusicianByPhone,
+  getVolunteerByEmail,
+  getMusicianByEmail,
+} from "@/lib/firebase";
 
 export default function SignIn() {
   const router = useRouter();
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [loginInput, setLoginInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [musician, setMusician] = useState<any>(null);
   const [volunteer, setVolunteer] = useState<any>(null);
   const [communityService, setCommunityService] = useState<any>(null);
 
+  const isEmail = (input: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!phoneNumber) {
-      toast.error("Please enter your phone number");
+    if (!loginInput) {
+      toast.error("Please enter your phone number or email");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Normalize phone number (remove non-digits)
-      const normalizedPhone = phoneNumber.replace(/\D/g, "");
+      let musicianResult;
+      let volunteerResult;
 
-      // Check if user is a musician in Firebase
-      const musicianResult = await getMusicianByPhone(normalizedPhone);
+      // Check if input is email or phone
+      if (isEmail(loginInput)) {
+        // Search by email
+        musicianResult = await getMusicianByEmail(loginInput);
+        volunteerResult = await getVolunteerByEmail(loginInput);
+      } else {
+        // Search by phone
+        // Normalize phone number (remove non-digits)
+        const normalizedPhone = loginInput.replace(/\D/g, "");
+
+        musicianResult = await getMusicianByPhone(normalizedPhone);
+        volunteerResult = await getVolunteerByPhone(normalizedPhone);
+      }
+
       const musicianMatch =
         musicianResult.success &&
         musicianResult.data &&
@@ -58,8 +80,6 @@ export default function SignIn() {
           ? musicianResult.data[0]
           : null;
 
-      // Check if user is a volunteer in Firebase
-      const volunteerResult = await getVolunteerByPhone(normalizedPhone);
       const allVolunteers =
         volunteerResult.success && volunteerResult.data
           ? volunteerResult.data
@@ -120,7 +140,11 @@ export default function SignIn() {
         }
       } else {
         // If no match found
-        toast.error("No account found with this phone number");
+        toast.error(
+          `No account found with this ${
+            isEmail(loginInput) ? "email" : "phone number"
+          }`
+        );
       }
     } catch (error) {
       console.error("Error during sign in:", error);
@@ -173,13 +197,13 @@ export default function SignIn() {
             {!showRoleSelection ? (
               <form onSubmit={handleSignIn} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number or Email</Label>
+                  <Label htmlFor="loginInput">Phone Number or Email</Label>
                   <Input
-                    id="phone"
+                    id="loginInput"
                     type="text"
                     placeholder="Enter your phone number or email"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    value={loginInput}
+                    onChange={(e) => setLoginInput(e.target.value)}
                     required
                     disabled={isLoading}
                   />

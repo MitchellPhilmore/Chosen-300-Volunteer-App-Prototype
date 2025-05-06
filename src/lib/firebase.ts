@@ -486,7 +486,7 @@ export const getCompletedMusicianSessions = async (
     const q = query(
       collection(db, COMPLETED_MUSICIAN_SESSIONS_COLLECTION),
       where("musicianId", "==", musicianId),
-     // Order by checkout time, descending
+      // Order by checkout time, descending
       limit(count)
     );
     const querySnapshot = await getDocs(q);
@@ -882,6 +882,58 @@ export const getMusicianById = async (musicianId: string) => {
     }
   } catch (error) {
     console.error("Error getting musician from Firestore:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get a volunteer by email
+ * @param email - The email to search for
+ * @returns The volunteer data or null if not found
+ */
+export const getVolunteerByEmail = async (email: string) => {
+  try {
+    // Query Firestore for the volunteer with this email
+    const q = query(
+      collection(db, VOLUNTEERS_COLLECTION),
+      where("email", "==", email)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const volunteers: any[] = [];
+    querySnapshot.forEach((doc) => {
+      volunteers.push({ id: doc.id, ...doc.data() });
+    });
+
+    return { success: true, data: volunteers };
+  } catch (error) {
+    console.error("Error getting volunteer by email:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get a musician by email
+ * @param email - The email to search for
+ * @returns The musician data or null if not found
+ */
+export const getMusicianByEmail = async (email: string) => {
+  try {
+    // Query Firestore for the musician with this email
+    const q = query(
+      collection(db, MUSICIANS_COLLECTION),
+      where("email", "==", email)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const musicians: any[] = [];
+    querySnapshot.forEach((doc) => {
+      musicians.push({ id: doc.id, ...doc.data() });
+    });
+
+    return { success: true, data: musicians };
+  } catch (error) {
+    console.error("Error getting musician by email:", error);
     return { success: false, error };
   }
 };
