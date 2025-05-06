@@ -78,14 +78,12 @@ export default function MusicianDashboard({
   const id = params.id;
   const [musician, setMusician] = useState<Musician | null>(null);
   const [selectedActivity, setSelectedActivity] = useState("");
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [signInTime, setSignInTime] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSession, setActiveSession] = useState<MusicianSession | null>(
     null
   );
   const [musicianHistory, setMusicianHistory] = useState<MusicianSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAlsoVolunteer, setIsAlsoVolunteer] = useState(false);
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
 
@@ -131,34 +129,7 @@ export default function MusicianDashboard({
           }
         }
 
-        // 3. Fetch Active Session
-        const activeSessionResult = await getActiveMusicianSession(id);
-        if (activeSessionResult.success) {
-          if (activeSessionResult.data) {
-            const sessionData = activeSessionResult.data as MusicianSession;
-            setActiveSession(sessionData);
-            setIsSignedIn(true);
-            setSelectedActivity(sessionData.activity);
-            // Format timestamp if available, otherwise use ISO string
-            setSignInTime(
-              new Date(
-                sessionData.signInTimeTimestamp?.toDate() ||
-                  sessionData.signInTime
-              ).toLocaleTimeString()
-            );
-          } else {
-            // No active session
-            setActiveSession(null);
-            setIsSignedIn(false);
-            setSignInTime(null);
-            setSelectedActivity("");
-          }
-        } else {
-          toast.error("Error fetching active session.");
-          // Decide if this is critical - maybe allow dashboard access anyway?
-        }
-
-        // 4. Fetch Completed Sessions (History)
+        // 3. Fetch Completed Sessions (History)
         const completedSessionsResult = await getCompletedMusicianSessions(id);
         if (completedSessionsResult.success && completedSessionsResult.data) {
           setMusicianHistory(completedSessionsResult.data as MusicianSession[]);
@@ -171,8 +142,6 @@ export default function MusicianDashboard({
               "Error fetching session history:",
               completedSessionsResult.error
             );
-            // You might still want a subtle notification or log here, but not a blocking error toast
-            // toast.info("Could not fetch session history.");
           }
         }
       } catch (error) {
@@ -197,32 +166,60 @@ export default function MusicianDashboard({
     setIsSubmitting(true);
     try {
       const now = new Date();
+      const checkInTime = now;
+      const checkOutTime = new Date(now);
+      checkOutTime.setHours(checkOutTime.getHours() + 4); // Add 4 hours
+
+      // Create new session
       const newSession: MusicianSession = {
         musicianId: id,
         musicianName: `${musician.firstName} ${musician.lastName}`,
         activity: selectedActivity,
-        signInTime: now.toISOString(),
+        signInTime: checkInTime.toISOString(),
         // Timestamps will be added by Firestore function if needed
       };
 
+      // First save as active session to get a session ID
       const result = await saveActiveMusicianSession(newSession);
 
       if (result.success && result.sessionId) {
-        // Add the generated Firestore ID to the local state
-        const savedSessionWithId = { ...newSession, id: result.sessionId };
-        setActiveSession(savedSessionWithId);
-        setSignInTime(now.toLocaleTimeString());
-        setIsSignedIn(true);
+        // Now complete the session automatically with a 4-hour duration
+        const updatedSessionData = {
+          checkOutTime: checkOutTime.toISOString(),
+        };
 
-        toast.success("Signed in successfully!", {
-          description: `Activity: ${selectedActivity}`,
-        });
+        // Complete the session
+        const completeResult = await completeMusicianSession(
+          result.sessionId,
+          updatedSessionData
+        );
 
-        // Redirect to home page after check-in
-        setTimeout(() => {
-          toast.info("Redirecting to home page...");
-          router.push("/");
-        }, 4000) // Give time for the success toast to be seen
+        if (completeResult.success) {
+          // Since we're immediately completing the session, don't set active session
+          setActiveSession(null);
+
+          // Reload the musician history to show the new session
+          const completedSessionsResult = await getCompletedMusicianSessions(
+            id
+          );
+          if (completedSessionsResult.success && completedSessionsResult.data) {
+            setMusicianHistory(
+              completedSessionsResult.data as MusicianSession[]
+            );
+          }
+
+          toast.success("Signed in successfully!", {
+            description: `Activity: ${selectedActivity} (4 hours recorded)`,
+          });
+
+          // Redirect to home page after 2.5 seconds
+          setTimeout(() => {
+            toast.info("Redirecting to home page...");
+            router.push("/");
+          }, 2500);
+        } else {
+          toast.error("Failed to complete session. Please try again.");
+        }
       } else {
         toast.error("Failed to sign in. Please try again.");
       }
@@ -234,43 +231,11 @@ export default function MusicianDashboard({
     }
   };
 
-  const handleSignOut = async () => {
-    if (!activeSession || !activeSession.id || !musician) return;
-
-    setIsSubmitting(true);
-    try {
-      const now = new Date();
-      const updatedSessionData = {
-        checkOutTime: now.toISOString(),
-        // checkOutTimeTimestamp will be added by Firestore function
-      };
-
-      const result = await completeMusicianSession(
-        activeSession.id,
-        updatedSessionData
-      );
-
-      if (result.success) {
-        // Update local state
-        const completedSession = { ...activeSession, ...updatedSessionData };
-        setActiveSession(null);
-        setIsSignedIn(false);
-        setSignInTime(null);
-        // Add checkout timestamp locally if possible for immediate UI update
-        completedSession.checkOutTimeTimestamp = { toDate: () => now };
-        setMusicianHistory([completedSession, ...musicianHistory]);
-        setSelectedActivity("");
-        toast.success("Signed out successfully!");
-        router.push("/"); // Redirect to the root page
-      } else {
-        toast.error("Failed to sign out. Please try again.");
-      }
-    } catch (error) {
-      console.error("Sign out error:", error);
-      toast.error("An error occurred during sign out.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Handle explicit sign out (clears localStorage)
+  const handleExplicitSignOut = () => {
+    localStorage.removeItem("currentMusicianId");
+    toast.info("You have been signed out.");
+    router.push("/signin");
   };
 
   const formatDate = (dateString: string | undefined) => {
@@ -301,6 +266,25 @@ export default function MusicianDashboard({
     } catch (e) {
       console.error("Error formatting date:", dateString, e);
       return "Invalid Date";
+    }
+  };
+
+  // Calculate session duration in hours and minutes
+  const calculateDuration = (startTime: string, endTime: string) => {
+    try {
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      const durationMs = end.getTime() - start.getTime();
+      const hours = Math.floor(durationMs / (1000 * 60 * 60));
+      const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (hours === 0) {
+        return `${minutes}m`;
+      }
+      return `${hours}h ${minutes}m`;
+    } catch (e) {
+      console.error("Error calculating duration:", e);
+      return "Unknown";
     }
   };
 
@@ -392,13 +376,6 @@ export default function MusicianDashboard({
     }
   };
 
-  // Handle explicit sign out (clears localStorage)
-  const handleExplicitSignOut = () => {
-    localStorage.removeItem("currentMusicianId");
-    toast.info("You have been signed out.");
-    router.push("/signin");
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -464,72 +441,41 @@ export default function MusicianDashboard({
             <CardTitle>Session Management</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {!isSignedIn ? (
-              <div className="space-y-4">
-                <Label htmlFor="activity">Select Activity</Label>
-                <Select
-                  value={selectedActivity}
-                  onValueChange={setSelectedActivity}
-                  disabled={isSubmitting}
+            <div className="space-y-4">
+              <Label htmlFor="activity">Select Activity</Label>
+              <Select
+                value={selectedActivity}
+                onValueChange={setSelectedActivity}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger id="activity">
+                  <SelectValue placeholder="Choose an activity..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sunday Worship">Sunday Worship</SelectItem>
+                  <SelectItem value="performance">Performance</SelectItem>
+                  <SelectItem value="meeting">Meeting</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <motion.div
+                whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+              >
+                <Button
+                  onClick={handleSignIn}
+                  disabled={!selectedActivity || isSubmitting}
+                  className="w-full bg-red-700 hover:bg-red-800"
                 >
-                  <SelectTrigger id="activity">
-                    <SelectValue placeholder="Choose an activity..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sunday Worship">
-                      Sunday Worship
-                    </SelectItem>
-                    <SelectItem value="performance">Performance</SelectItem>
-                    <SelectItem value="meeting">Meeting</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <motion.div
-                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-                >
-                  <Button
-                    onClick={handleSignIn}
-                    disabled={!selectedActivity || isSubmitting}
-                    className="w-full bg-red-700 hover:bg-red-800"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                    )}
-                    {isSubmitting ? "Signing In..." : "Sign In"}
-                  </Button>
-                </motion.div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-lg font-medium text-green-600">
-                  Currently signed in for: {selectedActivity}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Sign-in time: {signInTime}
-                </p>
-                <motion.div
-                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-                >
-                  <Button
-                    onClick={handleSignOut}
-                    disabled={isSubmitting}
-                    variant="destructive"
-                    className="w-full"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <LogOut className="mr-2 h-4 w-4" />
-                    )}
-                    {isSubmitting ? "Signing Out..." : "Sign Out"}
-                  </Button>
-                </motion.div>
-              </div>
-            )}
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                  )}
+                  {isSubmitting ? "Signing In..." : "Sign In"}
+                </Button>
+              </motion.div>
+            </div>
           </CardContent>
         </Card>
 
@@ -578,6 +524,23 @@ export default function MusicianDashboard({
                           Checked in at:{" "}
                           {new Date(session.signInTime).toLocaleTimeString()}
                         </p>
+                        {session.checkOutTime && (
+                          <p>
+                            Checked out at:{" "}
+                            {new Date(
+                              session.checkOutTime
+                            ).toLocaleTimeString()}
+                          </p>
+                        )}
+                        {session.checkOutTime && (
+                          <p className="font-medium text-green-600">
+                            Duration:{" "}
+                            {calculateDuration(
+                              session.signInTime,
+                              session.checkOutTime
+                            )}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.li>
