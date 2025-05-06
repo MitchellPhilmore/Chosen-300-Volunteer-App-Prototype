@@ -345,7 +345,11 @@ export default function VolunteerDashboard() {
             description: `You've checked in at ${new Date().toLocaleTimeString()}`,
           });
 
-          // For CS volunteers, we keep them on the dashboard to checkout later
+          // Redirect to home page for CS volunteers as well
+          setTimeout(() => {
+            toast.info("Redirecting to home page...");
+            router.push("/");
+          }, 2500); // Redirect after 2.5 seconds
         } else {
           throw result.error || new Error("Failed to save active session");
         }
