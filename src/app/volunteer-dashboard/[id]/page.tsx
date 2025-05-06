@@ -425,6 +425,12 @@ export default function VolunteerDashboard() {
         toast.success("Check-out successful!", {
           description: `You worked ${hoursWorked} hours. Thank you for your time!`,
         });
+
+        // Redirect to home page after check-out
+        setTimeout(() => {
+          toast.info("Redirecting to home page...");
+          router.push("/");
+        }, 2500); // Redirect after 2.5 seconds
       } else {
         throw result.error || new Error("Firestore operation failed");
       }
