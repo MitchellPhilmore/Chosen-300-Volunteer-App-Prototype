@@ -96,6 +96,9 @@ interface VolunteerSession {
   updatedAt?: Timestamp;
 }
 
+// Add this line to get the default code from environment variables
+const DEFAULT_ADMIN_CODE = process.env.NEXT_PUBLIC_DEFAULT_ADMIN_CODE;
+
 export default function VolunteerDashboard() {
   const params = useParams();
   const id = params.id as string;
@@ -237,7 +240,11 @@ export default function VolunteerDashboard() {
         const submittedCode = adminCode.padStart(4, "0");
         const storedCode = dailyCode.code.padStart(4, "0");
 
-        if (submittedCode !== storedCode && submittedCode !== "5673") {
+        // Check against daily code or default code from env variable
+        if (
+          submittedCode !== storedCode &&
+          submittedCode !== DEFAULT_ADMIN_CODE
+        ) {
           toast.error("Invalid check-in code", {
             description:
               "Please check with your coordinator for the correct code.",
