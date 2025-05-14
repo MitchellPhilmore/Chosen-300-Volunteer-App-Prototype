@@ -221,33 +221,38 @@ export default function VolunteerDashboard() {
     try {
       // Only validate code for CS volunteers or CS sessions
       if (volunteer.volunteerType === "communityService" || isCsSession) {
-        const dailyCodeResult = await getDailyCode() || DEFAULT_ADMIN_CODE;
-
-        // Type guard to ensure data exists
-        if (!dailyCodeResult.success || !dailyCodeResult.data) {
-          toast.error("Invalid or Expired Code", {
-            description:
-              dailyCodeResult.message ||
-              "Could not verify check-in code. Please check with your coordinator.",
-          });
-          setAdminCode("");
-          setIsCheckingIn(false);
-          return;
-        }
-
-        // Use type assertion correctly by first casting to unknown
-        const dailyCode = dailyCodeResult.data as unknown as { code: string };
+        const dailyCodeResult = await getDailyCode();
         const submittedCode = adminCode.padStart(4, "0");
-        const storedCode = dailyCode.code.padStart(4, "0");
 
-        // Check against daily code or default code from env variable
-        if (
-          submittedCode !== storedCode &&
-          submittedCode !== DEFAULT_ADMIN_CODE
-        ) {
+        // If the daily code is working and valid, check against it
+        if (dailyCodeResult.success && dailyCodeResult.data) {
+          // Use type assertion correctly by first casting to unknown
+          const dailyCode = dailyCodeResult.data as unknown as { code: string };
+          const storedCode = dailyCode.code.padStart(4, "0");
+
+          // Check against daily code or default admin code (if set)
+          if (
+            submittedCode !== storedCode &&
+            (DEFAULT_ADMIN_CODE ? submittedCode !== DEFAULT_ADMIN_CODE : true)
+          ) {
+            toast.error("Invalid check-in code", {
+              description:
+                "Please check with your coordinator for the correct code.",
+            });
+            setAdminCode("");
+            setIsCheckingIn(false);
+            return;
+          }
+        }
+        // If daily code is not available, check against default admin code
+        else if (!DEFAULT_ADMIN_CODE || submittedCode !== DEFAULT_ADMIN_CODE) {
+          // If default code isn't set, show appropriate message
+          const errorMessage = !DEFAULT_ADMIN_CODE
+            ? "No backup code available. Please try again when the system is back online."
+            : "Daily code unavailable. Please use the backup code.";
+
           toast.error("Invalid check-in code", {
-            description:
-              "Please check with your coordinator for the correct code.",
+            description: errorMessage,
           });
           setAdminCode("");
           setIsCheckingIn(false);
