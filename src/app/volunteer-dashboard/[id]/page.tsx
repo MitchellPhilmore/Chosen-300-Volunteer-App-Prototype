@@ -221,7 +221,7 @@ export default function VolunteerDashboard() {
     try {
       // Only validate code for CS volunteers or CS sessions
       if (volunteer.volunteerType === "communityService" || isCsSession) {
-        const dailyCodeResult = await getDailyCode();
+        const dailyCodeResult = await getDailyCode() || DEFAULT_ADMIN_CODE;
 
         // Type guard to ensure data exists
         if (!dailyCodeResult.success || !dailyCodeResult.data) {
