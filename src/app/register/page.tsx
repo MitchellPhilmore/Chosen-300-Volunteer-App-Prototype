@@ -72,7 +72,7 @@ const volunteerSchema = z
     phone: phoneSchema.refine((value) => value.length > 0, {
       message: "Phone number is required",
     }),
-    volunteerType: z.string(),
+    volunteerType: z.enum(["communityService", "employment"]),
     serviceReason: z.string().optional(),
     serviceReasonOther: textFieldSchema.optional(),
     serviceInstitution: textFieldSchema.optional(),
@@ -137,13 +137,13 @@ function validatePersonalInfo(data: any) {
     phone: phoneSchema.refine((value) => value.length > 0, {
       message: "Phone number is required",
     }),
-    volunteerType: z.string(),
+    volunteerType: z.enum(["communityService", "employment"]),
   });
 
   // Validate base schema first
   const baseResult = baseSchema.safeParse(data);
   if (!baseResult.success) {
-    throw baseResult.error; // Throw the Zod error directly
+    throw baseResult.error;
   }
 
   // If community service, add specific validations
@@ -153,14 +153,13 @@ function validatePersonalInfo(data: any) {
         serviceReason: z
           .string()
           .min(1, "Please select a reason for your community service"),
-        serviceReasonOther: z.string().optional(), // Validate presence later
+        serviceReasonOther: z.string().optional(),
         serviceInstitution: z
           .string()
           .min(1, "Please enter the institution requiring your service"),
       })
       .refine(
         (csData) => {
-          // If service reason is "other", must provide detail
           if (csData.serviceReason === "other") {
             return (
               csData.serviceReasonOther && csData.serviceReasonOther.length > 0
@@ -174,19 +173,16 @@ function validatePersonalInfo(data: any) {
         }
       );
 
-    // Validate community service specific fields (reason, institution presence)
     const csResult = communityServiceSchema.safeParse(data);
     if (!csResult.success) {
-      throw csResult.error; // Throw the Zod error
+      throw csResult.error;
     }
 
-    // Now, specifically validate the text fields for invalid characters
     if (data.serviceReason === "other" && data.serviceReasonOther) {
       const reasonOtherResult = textFieldSchema.safeParse(
         data.serviceReasonOther
       );
       if (!reasonOtherResult.success) {
-        // Manually create a ZodError for better integration with existing error handling
         throw new z.ZodError([
           {
             code: z.ZodIssueCode.custom,
@@ -202,7 +198,6 @@ function validatePersonalInfo(data: any) {
         data.serviceInstitution
       );
       if (!institutionResult.success) {
-        // Manually create a ZodError
         throw new z.ZodError([
           {
             code: z.ZodIssueCode.custom,
@@ -214,7 +209,6 @@ function validatePersonalInfo(data: any) {
     }
   }
 
-  // If validation passed or not community service, return the parsed base data
   return baseResult.data;
 }
 
@@ -254,8 +248,7 @@ export default function Register() {
     const initialLastName = searchParams.get("lastName") || "";
     const initialEmail = searchParams.get("email") || "";
     const initialPhone = searchParams.get("phone") || "";
-    const initialType =
-      searchParams.get("type") === "communityService" ? "communityService" : "";
+    const initialType = searchParams.get("type") || "communityService"; // Default to community service
 
     return {
       volunteerType: initialType,
@@ -264,9 +257,9 @@ export default function Register() {
       email: initialEmail,
       phone: initialPhone,
       serviceReason: "",
-      serviceReasonOther: "", // New field for custom "other" reason
+      serviceReasonOther: "",
       serviceInstitution: "",
-      site: "", // New field for site selection
+      site: "",
       waiverAccepted: false,
       waiverSignature: "",
     };
@@ -288,7 +281,7 @@ export default function Register() {
       setFormData((prev) => ({ ...prev, volunteerType: "communityService" }));
     } else if (!type && source !== "musicianDashboard") {
       // If navigated without type (regular volunteer), ensure type is regular
-      setFormData((prev) => ({ ...prev, volunteerType: "regular" }));
+      setFormData((prev) => ({ ...prev, volunteerType: "communityService" }));
     }
   }, [searchParams, step]);
 
@@ -603,6 +596,40 @@ export default function Register() {
                 </div>
               )}
 
+              <div className="space-y-4">
+                <Label>
+                  Registration Type <span className="text-red-700">*</span>
+                </Label>
+                <RadioGroup
+                  value={formData.volunteerType}
+                  onValueChange={handleVolunteerTypeChange}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                    <RadioGroupItem
+                      value="communityService"
+                      id="communityService"
+                    />
+                    <Label
+                      htmlFor="communityService"
+                      className="font-medium cursor-pointer"
+                    >
+                      Community Service
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2 border p-4 rounded-md">
+                    <RadioGroupItem value="employment" id="employment" />
+                    <Label
+                      htmlFor="employment"
+                      className="font-medium cursor-pointer"
+                    >
+                      Employment
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">
@@ -769,6 +796,15 @@ export default function Register() {
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {formData.volunteerType === "employment" && (
+                <div className="space-y-4 border-t pt-4 mt-4">
+                  <h4 className="font-medium">Employment Information</h4>
+                  <p className="text-sm text-gray-600">
+                    Thank you for your interest in employment opportunities.
+                  </p>
                 </div>
               )}
             </div>

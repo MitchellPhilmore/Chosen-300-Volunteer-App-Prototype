@@ -110,7 +110,7 @@ export default function SplashScreen() {
               <div className="absolute inset-0 w-0 bg-red-700 transition-all duration-[400ms] ease-out group-hover:w-full opacity-10"></div>
               <div className="flex items-center justify-center space-x-3">
                 <Heart className="h-6 w-6" />
-                <span> Register for Community Service</span>
+                <span> Register for Community Service/Employment</span>
                 <ChevronRight className="h-5 w-5 opacity-70" />
               </div>
             </Button>

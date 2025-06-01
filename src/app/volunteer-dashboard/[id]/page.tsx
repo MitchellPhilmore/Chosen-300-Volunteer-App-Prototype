@@ -62,7 +62,7 @@ interface Volunteer {
   lastName: string;
   email?: string;
   phone: string;
-  volunteerType?: "regular" | "communityService";
+  volunteerType?: "regular" | "communityService" | "employment";
   serviceReason?: string;
   serviceReasonOther?: string;
   serviceInstitution?: string;
@@ -189,9 +189,11 @@ export default function VolunteerDashboard() {
   const handleCheckIn = async () => {
     if (!volunteer) return;
 
-    // Admin code only required for CS volunteers or CS sessions
+    // Admin code required for CS volunteers, CS sessions, or employment
     if (
-      (volunteer.volunteerType === "communityService" || isCsSession) &&
+      (volunteer.volunteerType === "communityService" ||
+        volunteer.volunteerType === "employment" ||
+        isCsSession) &&
       !adminCode
     ) {
       toast.error("Please enter the admin code");
@@ -203,8 +205,12 @@ export default function VolunteerDashboard() {
       return;
     }
 
-    // New Validation: If checking in for CS for the first time, require reason and institution
-    if (isCsSession && volunteer.volunteerType !== "communityService") {
+    // Only validate CS reason and institution for CS volunteers or CS sessions
+    if (
+      isCsSession &&
+      volunteer.volunteerType !== "communityService" &&
+      volunteer.volunteerType !== "employment"
+    ) {
       if (!csReason) {
         toast.error("Please enter the reason for your community service");
         return;
@@ -219,8 +225,12 @@ export default function VolunteerDashboard() {
     setIsCheckingIn(true);
 
     try {
-      // Only validate code for CS volunteers or CS sessions
-      if (volunteer.volunteerType === "communityService" || isCsSession) {
+      // Validate code for CS volunteers, employment, or CS sessions
+      if (
+        volunteer.volunteerType === "communityService" ||
+        volunteer.volunteerType === "employment" ||
+        isCsSession
+      ) {
         const dailyCodeResult = await getDailyCode();
         const submittedCode = adminCode.padStart(4, "0");
 
@@ -263,7 +273,11 @@ export default function VolunteerDashboard() {
       // --- Code is valid or not required, proceed with check-in logic --- //
 
       let updatedVolunteerData = { ...volunteer };
-      if (isCsSession && volunteer.volunteerType !== "communityService") {
+      if (
+        isCsSession &&
+        volunteer.volunteerType !== "communityService" &&
+        volunteer.volunteerType !== "employment"
+      ) {
         try {
           updatedVolunteerData = {
             ...volunteer,
@@ -295,12 +309,14 @@ export default function VolunteerDashboard() {
           firstName: updatedVolunteerData.firstName,
           lastName: updatedVolunteerData.lastName,
         },
-        isCommunityServiceSession: isCsSession,
+        isCommunityServiceSession:
+          isCsSession || updatedVolunteerData.volunteerType === "employment",
       };
 
       // For normal volunteers, automatically create a completed session with 4-hour duration
       if (
         updatedVolunteerData.volunteerType !== "communityService" &&
+        updatedVolunteerData.volunteerType !== "employment" &&
         !isCsSession
       ) {
         const checkInTime = new Date();
@@ -342,7 +358,7 @@ export default function VolunteerDashboard() {
           throw result.error || new Error("Failed to save session");
         }
       } else {
-        // For CS volunteers, continue with the normal active session flow
+        // For CS volunteers and employment, continue with the normal active session flow
         const result = await saveActiveVolunteerSession(checkInData);
 
         if (result.success && result.sessionId) {
@@ -554,10 +570,17 @@ export default function VolunteerDashboard() {
               Welcome, {volunteer.firstName}!
             </h1>
             <p className="text-gray-600">
-              Volunteer Dashboard
+              {volunteer.volunteerType === "employment"
+                ? "Employment Application Dashboard"
+                : "Volunteer Dashboard"}
               {volunteer.volunteerType === "communityService" && (
                 <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   <Briefcase className="mr-1 h-3 w-3" /> Community Service
+                </span>
+              )}
+              {volunteer.volunteerType === "employment" && (
+                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <Briefcase className="mr-1 h-3 w-3" /> Employment Application
                 </span>
               )}
             </p>
@@ -658,7 +681,11 @@ export default function VolunteerDashboard() {
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Current Status</CardTitle>
-                <CardDescription>Your volunteer activity</CardDescription>
+                <CardDescription>
+                  {volunteer.volunteerType === "employment"
+                    ? "Your employment application activity"
+                    : "Your volunteer activity"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {activeSession ? (
@@ -726,10 +753,15 @@ export default function VolunteerDashboard() {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Volunteer Check-In</DialogTitle>
+                          <DialogTitle>
+                            {volunteer.volunteerType === "employment"
+                              ? "Application Check-In"
+                              : "Volunteer Check-In"}
+                          </DialogTitle>
                           <DialogDescription>
-                            Please select a location and enter the admin code
-                            provided by staff.
+                            {volunteer.volunteerType === "employment"
+                              ? "Please select a location and enter the admin code provided by staff for your application activity."
+                              : "Please select a location and enter the admin code provided by staff."}
                           </DialogDescription>
                         </DialogHeader>
 
@@ -791,12 +823,15 @@ export default function VolunteerDashboard() {
                               htmlFor="isCsSession"
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
-                              This session is for Community Service hours
+                              {volunteer.volunteerType === "employment"
+                                ? "This session is for Employment Application hours"
+                                : "This session is for Community Service hours"}
                             </Label>
                           </div>
 
                           {/* Add notice about automatic checkout for normal volunteers */}
                           {volunteer?.volunteerType !== "communityService" &&
+                            volunteer?.volunteerType !== "employment" &&
                             !isCsSession && (
                               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                                 <p className="text-sm text-blue-700">
@@ -810,7 +845,8 @@ export default function VolunteerDashboard() {
                             )}
 
                           {isCsSession &&
-                            volunteer?.volunteerType !== "communityService" && (
+                            volunteer?.volunteerType !== "communityService" &&
+                            volunteer?.volunteerType !== "employment" && (
                               <div className="space-y-4 border-t pt-4 mt-4">
                                 <p className="text-sm text-gray-600">
                                   Please provide your Community Service details
@@ -894,10 +930,15 @@ export default function VolunteerDashboard() {
                   <span className="font-medium">Name:</span>{" "}
                   {volunteer.firstName} {volunteer.lastName}
                 </p>
-                {volunteer.volunteerType === "communityService" && (
+                {(volunteer.volunteerType === "communityService" ||
+                  volunteer.volunteerType === "employment") && (
                   <>
                     <p className="text-sm">
-                      <span className="font-medium">Service Reason:</span>{" "}
+                      <span className="font-medium">
+                        {volunteer.volunteerType === "employment"
+                          ? "Application Type:"
+                          : "Service Reason:"}
+                      </span>{" "}
                       {volunteer.serviceReason === "other"
                         ? volunteer.serviceReasonOther
                         : volunteer.serviceReason === "court-ordered"
@@ -906,7 +947,9 @@ export default function VolunteerDashboard() {
                     </p>
                     <p className="text-sm">
                       <span className="font-medium">
-                        Assigning Institution:
+                        {volunteer.volunteerType === "employment"
+                          ? "Referring Organization:"
+                          : "Assigning Institution:"}
                       </span>{" "}
                       {volunteer.serviceInstitution}
                     </p>
@@ -930,9 +973,15 @@ export default function VolunteerDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <History className="mr-2 h-5 w-5" />
-              Volunteer History
+              {volunteer.volunteerType === "employment"
+                ? "Application History"
+                : "Volunteer History"}
             </CardTitle>
-            <CardDescription>Your past volunteer sessions</CardDescription>
+            <CardDescription>
+              {volunteer.volunteerType === "employment"
+                ? "Your past application activities"
+                : "Your past volunteer sessions"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {volunteerHistory.length > 0 ? (
