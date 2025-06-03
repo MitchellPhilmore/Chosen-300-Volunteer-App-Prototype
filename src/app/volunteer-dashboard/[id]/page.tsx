@@ -571,7 +571,7 @@ export default function VolunteerDashboard() {
             </h1>
             <p className="text-gray-600">
               {volunteer.volunteerType === "employment"
-                ? "Employment Application Dashboard"
+                ? "Employee Dashboard"
                 : "Volunteer Dashboard"}
               {volunteer.volunteerType === "communityService" && (
                 <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -580,7 +580,7 @@ export default function VolunteerDashboard() {
               )}
               {volunteer.volunteerType === "employment" && (
                 <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <Briefcase className="mr-1 h-3 w-3" /> Employment Application
+                  <Briefcase className="mr-1 h-3 w-3" /> Employee
                 </span>
               )}
             </p>
@@ -824,7 +824,7 @@ export default function VolunteerDashboard() {
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
                               {volunteer.volunteerType === "employment"
-                                ? "This session is for Employment Application hours"
+                                ? "This session is for Employee hours"
                                 : "This session is for Community Service hours"}
                             </Label>
                           </div>
@@ -936,7 +936,7 @@ export default function VolunteerDashboard() {
                     <p className="text-sm">
                       <span className="font-medium">
                         {volunteer.volunteerType === "employment"
-                          ? "Application Type:"
+                          ? "Employee Type:"
                           : "Service Reason:"}
                       </span>{" "}
                       {volunteer.serviceReason === "other"
@@ -974,12 +974,12 @@ export default function VolunteerDashboard() {
             <CardTitle className="flex items-center">
               <History className="mr-2 h-5 w-5" />
               {volunteer.volunteerType === "employment"
-                ? "Application History"
+                ? "Employee History"
                 : "Volunteer History"}
             </CardTitle>
             <CardDescription>
               {volunteer.volunteerType === "employment"
-                ? "Your past application activities"
+                ? "Your past employee sessions"
                 : "Your past volunteer sessions"}
             </CardDescription>
           </CardHeader>
@@ -1049,9 +1049,15 @@ export default function VolunteerDashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <p>No volunteer history yet</p>
+                <p>
+                  {volunteer.volunteerType === "employment"
+                    ? "No shift history yet"
+                    : "No volunteer history yet"}
+                </p>
                 <p className="text-sm">
-                  Your completed volunteer sessions will appear here
+                  {volunteer.volunteerType === "employment"
+                    ? "Your completed shifts will appear here"
+                    : "Your completed volunteer sessions will appear here"}
                 </p>
               </div>
             )}

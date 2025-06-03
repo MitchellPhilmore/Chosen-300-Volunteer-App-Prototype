@@ -126,7 +126,24 @@ const volunteerSchema = z
   );
 
 // Create validation functions for each step
-function validatePersonalInfo(data: any) {
+function validatePersonalInfo(data: any, isSpecialized: boolean) {
+  // For regular volunteers, create a simpler schema
+  if (!isSpecialized) {
+    const regularVolunteerSchema = z.object({
+      firstName: nameSchema,
+      lastName: nameSchema,
+      email: emailSchema.refine((value) => value.length > 0, {
+        message: "Email address is required",
+      }),
+      phone: phoneSchema.refine((value) => value.length > 0, {
+        message: "Phone number is required",
+      }),
+    });
+
+    return regularVolunteerSchema.parse(data);
+  }
+
+  // For specialized volunteers, use the more complex schema
   // Base schema for all volunteers
   const baseSchema = z.object({
     firstName: nameSchema,
@@ -241,6 +258,10 @@ export default function Register() {
   const totalSteps = 3; // Reduced from 4 to 3 (no emergency contact)
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Track if this is a specialized registration (community service or employment)
+  const [isSpecializedRegistration, setIsSpecializedRegistration] =
+    useState(false);
+
   // Simplified form state
   const [formData, setFormData] = useState(() => {
     // Get initial values from query parameters only on initial load
@@ -249,6 +270,10 @@ export default function Register() {
     const initialEmail = searchParams.get("email") || "";
     const initialPhone = searchParams.get("phone") || "";
     const initialType = searchParams.get("type") || "communityService"; // Default to community service
+
+    // Check if this is a specialized registration from query params
+    const isSpecialized = searchParams.has("type");
+    setIsSpecializedRegistration(isSpecialized);
 
     return {
       volunteerType: initialType,
@@ -270,18 +295,30 @@ export default function Register() {
     const type = searchParams.get("type");
     const source = searchParams.get("source");
 
-    if (
+    // Handle specialized registration (community service/employment)
+    if (type === "specialized") {
+      setIsSpecializedRegistration(true);
+      // Default to communityService if no specific type given
+      setFormData((prev) => ({
+        ...prev,
+        volunteerType: prev.volunteerType || "communityService",
+      }));
+    }
+    // Handle legacy type param values for backward compatibility
+    else if (
       type === "communityService" &&
       source === "musicianDashboard" &&
       step !== 1
     ) {
       // Already handled by useState initializer, do nothing if type is set
     } else if (type === "communityService" && step === 1) {
-      // If type is set but somehow we are on step 1 (e.g., direct navigation), update state
+      // If type is communityService, mark as specialized and set type
+      setIsSpecializedRegistration(true);
       setFormData((prev) => ({ ...prev, volunteerType: "communityService" }));
     } else if (!type && source !== "musicianDashboard") {
-      // If navigated without type (regular volunteer), ensure type is regular
-      setFormData((prev) => ({ ...prev, volunteerType: "communityService" }));
+      // Regular volunteer registration (no specialized fields)
+      setIsSpecializedRegistration(false);
+      setFormData((prev) => ({ ...prev, volunteerType: "regular" }));
     }
   }, [searchParams, step]);
 
@@ -422,7 +459,7 @@ export default function Register() {
     try {
       if (step === 1) {
         // Validate personal information
-        validatePersonalInfo(formData);
+        validatePersonalInfo(formData, isSpecializedRegistration);
       } else if (step === 2) {
         // Validate site selection
         validateSiteSelection(formData);
@@ -533,15 +570,19 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      // Check for duplicate volunteer is now done after step 1
-      // so we don't need to check again here
-
       // Create a unique ID for the volunteer
       const volunteerId = uuidv4();
 
+      // For regular volunteers, set a default volunteer type
+      const finalFormData = {
+        ...formData,
+        // If not a specialized registration, set volunteerType to "regular"
+        ...(!isSpecializedRegistration && { volunteerType: "regular" }),
+      };
+
       const newVolunteer = {
         id: volunteerId,
-        ...formData,
+        ...finalFormData,
         registrationDate: new Date().toISOString(),
       };
 
@@ -596,39 +637,42 @@ export default function Register() {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <Label>
-                  Registration Type <span className="text-red-700">*</span>
-                </Label>
-                <RadioGroup
-                  value={formData.volunteerType}
-                  onValueChange={handleVolunteerTypeChange}
-                  className="space-y-4"
-                >
-                  <div className="flex items-center space-x-2 border p-4 rounded-md">
-                    <RadioGroupItem
-                      value="communityService"
-                      id="communityService"
-                    />
-                    <Label
-                      htmlFor="communityService"
-                      className="font-medium cursor-pointer"
-                    >
-                      Community Service
-                    </Label>
-                  </div>
+              {/* Only show Registration Type section for specialized registrations */}
+              {isSpecializedRegistration && (
+                <div className="space-y-4">
+                  <Label>
+                    Registration Type <span className="text-red-700">*</span>
+                  </Label>
+                  <RadioGroup
+                    value={formData.volunteerType}
+                    onValueChange={handleVolunteerTypeChange}
+                    className="space-y-4"
+                  >
+                    <div className="flex items-center space-x-2 border p-4 rounded-md">
+                      <RadioGroupItem
+                        value="communityService"
+                        id="communityService"
+                      />
+                      <Label
+                        htmlFor="communityService"
+                        className="font-medium cursor-pointer"
+                      >
+                        Community Service
+                      </Label>
+                    </div>
 
-                  <div className="flex items-center space-x-2 border p-4 rounded-md">
-                    <RadioGroupItem value="employment" id="employment" />
-                    <Label
-                      htmlFor="employment"
-                      className="font-medium cursor-pointer"
-                    >
-                      Employment
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
+                    <div className="flex items-center space-x-2 border p-4 rounded-md">
+                      <RadioGroupItem value="employment" id="employment" />
+                      <Label
+                        htmlFor="employment"
+                        className="font-medium cursor-pointer"
+                      >
+                        Employee
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -717,96 +761,103 @@ export default function Register() {
                 Both email and phone are required for registration.
               </p>
 
-              {formData.volunteerType === "communityService" && (
-                <div className="space-y-4 border-t pt-4 mt-4">
-                  <h4 className="font-medium">Community Service Information</h4>
+              {/* Only show these sections for specialized registrations with community service type */}
+              {isSpecializedRegistration &&
+                formData.volunteerType === "communityService" && (
+                  <div className="space-y-4 border-t pt-4 mt-4">
+                    <h4 className="font-medium">
+                      Community Service Information
+                    </h4>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="serviceReason">
-                      Reason for Service <span className="text-red-700">*</span>
-                    </Label>
-                    <Select
-                      value={formData.serviceReason}
-                      onValueChange={handleServiceReasonChange}
-                    >
-                      <SelectTrigger
-                        id="serviceReason"
-                        className={`w-full ${
-                          errors.serviceReason ? "border-red-500" : ""
-                        }`}
+                    <div className="space-y-2">
+                      <Label htmlFor="serviceReason">
+                        Reason for Service{" "}
+                        <span className="text-red-700">*</span>
+                      </Label>
+                      <Select
+                        value={formData.serviceReason}
+                        onValueChange={handleServiceReasonChange}
                       >
-                        <SelectValue placeholder="Select a reason" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="court-ordered">
-                          Court ordered
-                        </SelectItem>
-                        <SelectItem value="school">School</SelectItem>
-                        <SelectItem value="work">Work</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.serviceReason && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.serviceReason}
-                      </p>
-                    )}
-
-                    {formData.serviceReason === "other" && (
-                      <div className="mt-2">
-                        <Input
-                          id="serviceReasonOther"
-                          name="serviceReasonOther"
-                          value={formData.serviceReasonOther}
-                          onChange={handleChange}
-                          placeholder="Please specify your reason"
-                          className={`mt-1 ${
-                            errors.serviceReasonOther ? "border-red-500" : ""
+                        <SelectTrigger
+                          id="serviceReason"
+                          className={`w-full ${
+                            errors.serviceReason ? "border-red-500" : ""
                           }`}
-                          required
-                        />
-                        {errors.serviceReasonOther && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors.serviceReasonOther}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                        >
+                          <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="court-ordered">
+                            Court ordered
+                          </SelectItem>
+                          <SelectItem value="school">School</SelectItem>
+                          <SelectItem value="work">Work</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.serviceReason && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.serviceReason}
+                        </p>
+                      )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="serviceInstitution">
-                      Assigning Institution{" "}
-                      <span className="text-red-700">*</span>
-                    </Label>
-                    <Input
-                      id="serviceInstitution"
-                      name="serviceInstitution"
-                      value={formData.serviceInstitution}
-                      onChange={handleChange}
-                      placeholder="e.g., Philadelphia Municipal Court, Central High School"
-                      required
-                      className={
-                        errors.serviceInstitution ? "border-red-500" : ""
-                      }
-                    />
-                    {errors.serviceInstitution && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.serviceInstitution}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
+                      {formData.serviceReason === "other" && (
+                        <div className="mt-2">
+                          <Input
+                            id="serviceReasonOther"
+                            name="serviceReasonOther"
+                            value={formData.serviceReasonOther}
+                            onChange={handleChange}
+                            placeholder="Please specify your reason"
+                            className={`mt-1 ${
+                              errors.serviceReasonOther ? "border-red-500" : ""
+                            }`}
+                            required
+                          />
+                          {errors.serviceReasonOther && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.serviceReasonOther}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-              {formData.volunteerType === "employment" && (
-                <div className="space-y-4 border-t pt-4 mt-4">
-                  <h4 className="font-medium">Employment Information</h4>
-                  <p className="text-sm text-gray-600">
-                    Thank you for your interest in employment opportunities.
-                  </p>
-                </div>
-              )}
+                    <div className="space-y-2">
+                      <Label htmlFor="serviceInstitution">
+                        Assigning Institution{" "}
+                        <span className="text-red-700">*</span>
+                      </Label>
+                      <Input
+                        id="serviceInstitution"
+                        name="serviceInstitution"
+                        value={formData.serviceInstitution}
+                        onChange={handleChange}
+                        placeholder="e.g., Philadelphia Municipal Court, Central High School"
+                        required
+                        className={
+                          errors.serviceInstitution ? "border-red-500" : ""
+                        }
+                      />
+                      {errors.serviceInstitution && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.serviceInstitution}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {/* Only show employment info for specialized registrations with employment type */}
+              {isSpecializedRegistration &&
+                formData.volunteerType === "employment" && (
+                  <div className="space-y-4 border-t pt-4 mt-4">
+                    <h4 className="font-medium">Employee Information</h4>
+                    <p className="text-sm text-gray-600">
+                      Thank you for your interest in employment opportunities.
+                    </p>
+                  </div>
+                )}
             </div>
 
             <div className="flex space-x-4">
@@ -1142,9 +1193,16 @@ export default function Register() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Volunteer Registration</CardTitle>
+                <CardTitle>
+                  {isSpecializedRegistration
+                    ? "Community Service/Employee Registration"
+                    : "Volunteer Registration"}
+                </CardTitle>
                 <CardDescription>
-                  Register as a new volunteer with Chosen 300
+                  {isSpecializedRegistration
+
+                    ? "Register as a community service volunteer or employee with Chosen 300."
+                    : "Register as a new volunteer with Chosen 300"}
                 </CardDescription>
               </div>
             </div>
