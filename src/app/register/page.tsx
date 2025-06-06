@@ -594,12 +594,18 @@ export default function Register() {
           description: "Thank you for registering as a volunteer.",
         });
 
-        // Also save to localStorage as a backup
-        const volunteers = JSON.parse(
-          localStorage.getItem("volunteers") || "[]"
-        );
-        volunteers.push(newVolunteer);
-        localStorage.setItem("volunteers", JSON.stringify(volunteers));
+        // Try to save to localStorage as a backup, but don't block registration if it fails
+        try {
+          const volunteers = JSON.parse(
+            localStorage.getItem("volunteers") || "[]"
+          );
+          volunteers.push(newVolunteer);
+          localStorage.setItem("volunteers", JSON.stringify(volunteers));
+        } catch (error) {
+          // Log the error but continue with registration
+          console.error("Failed to save to localStorage:", error);
+          // This is non-blocking - registration is still successful
+        }
 
         router.push(`/volunteer-dashboard/${volunteerId}`);
       } else {
@@ -1200,7 +1206,6 @@ export default function Register() {
                 </CardTitle>
                 <CardDescription>
                   {isSpecializedRegistration
-
                     ? "Register as a community service volunteer or employee with Chosen 300."
                     : "Register as a new volunteer with Chosen 300"}
                 </CardDescription>
