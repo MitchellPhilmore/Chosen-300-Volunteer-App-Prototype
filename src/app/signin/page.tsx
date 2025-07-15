@@ -62,13 +62,20 @@ export default function SignIn() {
       // Check if input is email or phone
       if (isEmail(loginInput)) {
         // Search by email
-        musicianResult = await getMusicianByEmail(loginInput);
-        volunteerResult = await getVolunteerByEmail(loginInput);
+        musicianResult = await getMusicianByEmail(loginInput.toLowerCase());
+        volunteerResult = await getVolunteerByEmail(loginInput.toLowerCase());
       } else {
-        // Search by phone
-        // Normalize phone number (remove non-digits)
+        // Treat as phone number: strip non-digits
         const normalizedPhone = loginInput.replace(/\D/g, "");
 
+        // Require exactly 10 digits for phone numbers
+        if (normalizedPhone.length !== 10) {
+          toast.error("Please enter a valid 10-digit phone number");
+          setIsLoading(false);
+          return;
+        }
+
+        // Search by phone
         musicianResult = await getMusicianByPhone(normalizedPhone);
         volunteerResult = await getVolunteerByPhone(normalizedPhone);
       }
