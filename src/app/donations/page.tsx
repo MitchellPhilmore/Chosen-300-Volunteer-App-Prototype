@@ -46,7 +46,7 @@ export default function ClothingDonationsPage() {
     phone: "",
     address: "",
     preferredContact: { phone: false, email: false, text: false },
-    types: { men: false, women: false, children: false, baby: false, accessories: false },
+    types: { men: false, women: false, children: false,  accessories: false },
     condition: "new",
     quantity: "",
     seasonal: { winter: false, summer: false, allseason: false },
@@ -335,10 +335,7 @@ export default function ClothingDonationsPage() {
                     <Checkbox checked={formData.types.children} onCheckedChange={(v) => handleTypesChange("children", Boolean(v))} />
                     <span className="text-sm">Children's</span>
                   </label>
-                  <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.types.baby} onCheckedChange={(v) => handleTypesChange("baby", Boolean(v))} />
-                    <span className="text-sm">Baby</span>
-                  </label>
+             
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.types.accessories} onCheckedChange={(v) => handleTypesChange("accessories", Boolean(v))} />
                     <span className="text-sm">Accessories</span>
