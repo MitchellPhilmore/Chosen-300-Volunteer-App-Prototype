@@ -64,6 +64,7 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
 // Collection names
 export const VOLUNTEERS_COLLECTION = "volunteers";
 export const MUSICIANS_COLLECTION = "musicians";
+export const DONATIONS_COLLECTION = "donations";
 export const ACTIVE_VOLUNTEER_SESSIONS_COLLECTION = "activeVolunteerSessions";
 export const COMPLETED_VOLUNTEER_SESSIONS_COLLECTION =
   "completedVolunteerSessions";
@@ -882,6 +883,107 @@ export const getMusicianById = async (musicianId: string) => {
     }
   } catch (error) {
     console.error("Error getting musician from Firestore:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Save a donation to Firestore
+ * @param donation - The donation data to save
+ * @returns Promise that resolves when the donation is saved
+ */
+export const saveDonation = async (donation: any) => {
+  try {
+    // Create a clean copy of the donation object
+    const cleanDonation = { ...donation };
+
+    // Handle waiverSignature - Firestore can't store complex objects
+    if (cleanDonation.waiverSignature) {
+      // If it's a string (base64), keep it as is
+      if (typeof cleanDonation.waiverSignature === "string") {
+        // Truncate if extremely long (Firestore has 1MB document size limit)
+        if (cleanDonation.waiverSignature.length > 900000) {
+          // ~900KB limit to be safe
+          console.warn("Signature is too large, truncating");
+          cleanDonation.waiverSignature =
+            cleanDonation.waiverSignature.substring(0, 900000);
+        }
+      }
+      // If it's an object with base64 property, extract it
+      else if (cleanDonation.waiverSignature.base64) {
+        cleanDonation.waiverSignature =
+          cleanDonation.waiverSignature.base64;
+      }
+      // If we can't handle it, remove it
+      else if (typeof cleanDonation.waiverSignature !== "string") {
+        console.warn(
+          "Removing unsupported waiverSignature format:",
+          Object.prototype.toString.call(cleanDonation.waiverSignature)
+        );
+        cleanDonation.waiverSignature = "";
+      }
+    }
+
+    // Add timestamp (only if not already set)
+    if (!cleanDonation.submittedAt) {
+      cleanDonation.submittedAt = Timestamp.now();
+    }
+    if (!cleanDonation.submissionDate) {
+      cleanDonation.submissionDate = new Date().toISOString();
+    }
+
+    // Use the donation's ID as the document ID (should always exist)
+    const donationId = cleanDonation.id;
+    if (!donationId) {
+      throw new Error("Donation ID is required");
+    }
+    await setDoc(doc(db, DONATIONS_COLLECTION, donationId), cleanDonation);
+    return { success: true, id: donationId };
+  } catch (error) {
+    console.error("Error saving donation to Firestore:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get all donations
+ * @returns Array of all donations
+ */
+export const getAllDonations = async () => {
+  try {
+    const q = query(
+      collection(db, DONATIONS_COLLECTION),
+      orderBy("submittedAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const donations: any[] = [];
+    querySnapshot.forEach((doc) => {
+      donations.push({ id: doc.id, ...doc.data() });
+    });
+    return { success: true, data: donations };
+  } catch (error) {
+    console.error("Error getting all donations from Firestore:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get a donation by ID
+ * @param donationId - The ID of the donation to retrieve
+ * @returns The donation data or null if not found
+ */
+export const getDonationById = async (donationId: string) => {
+  try {
+    const docRef = doc(db, DONATIONS_COLLECTION, donationId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+    } else {
+      return { success: false, error: "Donation not found" };
+    }
+  } catch (error) {
+    console.error("Error getting donation from Firestore:", error);
     return { success: false, error };
   }
 };

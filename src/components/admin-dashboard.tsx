@@ -39,6 +39,7 @@ import {
   getAllCompletedVolunteerSessions,
   getAllActiveMusicianSessions,
   getAllCompletedMusicianSessions,
+  getAllDonations,
   completeVolunteerSession,
   completeMusicianSession,
   getDailyCode,
@@ -143,10 +144,50 @@ interface CodeAuditLog {
   adminId: string;
 }
 
+interface Donation {
+  id: string;
+  name: string;
+  orgName: string;
+  email: string;
+  phone: string;
+  address: string;
+  items: string;
+  condition: string; 
+  method: string; 
+  notes: string;
+  quantity: string;
+  submissionDate: string; 
+  submittedAt: string; 
+  waiverAccepted: boolean;
+  waiverSignature: string; 
+  
+  preferredContact: {
+    email: boolean;
+    phone: boolean;
+    text: boolean;
+  };
+
+  seasonal: {
+    allseason: boolean;
+    summer: boolean;
+    winter: boolean;
+  };
+
+  types: {
+    accessories: boolean;
+    baby: boolean;
+    children: boolean;
+    men: boolean;
+    women: boolean;
+  };
+}
+
+
 export default function AdminDashboard() {
   const [activeVolunteers, setActiveVolunteers] = useState<VolunteerSession[]>(
     []
   );
+  const [donations, setDonations] = useState<Donation[]>([])
   const [activeMusicians, setActiveMusicians] = useState<MusicianSession[]>([]);
   const [completedSessions, setCompletedSessions] = useState<
     VolunteerSession[]
@@ -198,6 +239,7 @@ export default function AdminDashboard() {
         completedMusiciansResult,
         dailyCodeResult,
         auditLogResult,
+        donationsResult
       ] = await Promise.all([
         getAllActiveVolunteerSessions(),
         getAllCompletedVolunteerSessions(),
@@ -207,6 +249,8 @@ export default function AdminDashboard() {
         getAllCompletedMusicianSessions(),
         getDailyCode(),
         getCodeAuditLog(),
+        getAllDonations()
+        
       ]);
 
       const regVolunteers = registeredVolunteersResult.success
@@ -346,6 +390,14 @@ export default function AdminDashboard() {
           console.error("Error loading audit log:", auditLogResult.error);
           toast.error("Failed to load code audit log");
         }
+      }
+      if(donationsResult.success && donationsResult.data) {
+        setDonations(donationsResult.data);
+        if (donationsResult.error) {
+          console.error("Error loading audit log:", donationsResult.error);
+          toast.error("Failed to load code audit log");
+        }
+
       }
 
       if (!activeVolunteersResult.success)
@@ -1074,6 +1126,12 @@ export default function AdminDashboard() {
           >
             Registered Musicians ({registeredMusicians.length})
           </TabsTrigger>
+          <TabsTrigger
+            value="donations"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
+            Donations ({donations.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="border rounded-md p-0 md:p-4">
@@ -1451,6 +1509,86 @@ export default function AdminDashboard() {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent
+          value="donations"
+          className="border rounded-md p-0 md:p-4"
+        >
+          {donations.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Number of Bags</TableHead>
+                    <TableHead>Condition</TableHead>
+                    <TableHead>Seasonal Items</TableHead>
+                    <TableHead>Type of Clothing</TableHead>
+                    <TableHead>Drop off site</TableHead>
+                    <TableHead>Submission Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {donations.map((donation) => {
+                    const seasonalItems = [];
+                    if (donation.seasonal?.allseason) seasonalItems.push("All Season");
+                    if (donation.seasonal?.summer) seasonalItems.push("Summer");
+                    if (donation.seasonal?.winter) seasonalItems.push("Winter");
+
+                    const clothingTypes = [];
+                    if (donation.types?.accessories) clothingTypes.push("Accessories");
+                    if (donation.types?.baby) clothingTypes.push("Baby");
+                    if (donation.types?.children) clothingTypes.push("Children");
+                    if (donation.types?.men) clothingTypes.push("Men");
+                    if (donation.types?.women) clothingTypes.push("Women");
+
+                    return (
+                      <TableRow key={donation.id}>
+                        <TableCell>{donation.name}</TableCell>
+                        <TableCell>{donation.orgName || "-"}</TableCell>
+                        <TableCell>
+                          <div>{donation.email || "-"}</div>
+                          <div>{donation.phone}</div>
+                        </TableCell>
+                        <TableCell>{donation.items || "-"}</TableCell>
+                        <TableCell>{donation.quantity || "-"}</TableCell>
+                        <TableCell>
+                          {donation.condition
+                            ? donation.condition.charAt(0).toUpperCase() +
+                              donation.condition.slice(1)
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {seasonalItems.length > 0 ? seasonalItems.join(", ") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {clothingTypes.length > 0 ? clothingTypes.join(", ") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {donation.method
+                            ? donation.method.charAt(0).toUpperCase() +
+                              donation.method.slice(1)
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(donation.submissionDate)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground p-4">
+              No donations found in Firestore
+            </div>
+          )}
+        </TabsContent>
+        
       </Tabs>
     </div>
   );
