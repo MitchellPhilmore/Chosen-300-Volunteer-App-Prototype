@@ -1522,7 +1522,6 @@ export default function AdminDashboard() {
                     <TableHead>Name</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Contact</TableHead>
-                    <TableHead>Items</TableHead>
                     <TableHead>Number of Bags</TableHead>
                     <TableHead>Condition</TableHead>
                     <TableHead>Seasonal Items</TableHead>
@@ -1553,7 +1552,6 @@ export default function AdminDashboard() {
                           <div>{donation.email || "-"}</div>
                           <div>{donation.phone}</div>
                         </TableCell>
-                        <TableCell>{donation.items || "-"}</TableCell>
                         <TableCell>{donation.quantity || "-"}</TableCell>
                         <TableCell>
                           {donation.condition
