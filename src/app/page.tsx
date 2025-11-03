@@ -139,7 +139,7 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <Gift className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Clothing Donations</span>
+                <span className="text-sm font-medium">Donations</span>
               </div>
             </motion.button>
           </motion.div>

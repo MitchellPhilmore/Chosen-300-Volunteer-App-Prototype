@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { SignatureMaker } from "@docuseal/signature-maker-react";
 
-export default function ClothingDonationsPage() {
+export default function DonationsPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const totalSteps = 4;
@@ -40,19 +40,29 @@ export default function ClothingDonationsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     orgName: "",
     email: "",
     phone: "",
     address: "",
     preferredContact: { phone: false, email: false, text: false },
-    types: { men: false, women: false, children: false,  accessories: false },
-    condition: "new",
+    categories: { 
+      clothing: false, 
+      bricABrac: false, 
+      food: false, 
+      toys: false, 
+      furniture: false, 
+      electronics: false, 
+      schoolOfficeSupplies: false, 
+      hygienePersonalCare: false, 
+      cleaningHouseholdEssentials: false, 
+      petSupplies: false 
+    },
     quantity: "",
-    seasonal: { winter: false, summer: false, allseason: false },
     items: "",
     notes: "",
-    method: "dropoff",
+    method: "",
     waiverAccepted: false,
     waiverSignature: null as string | null,
   });
@@ -61,8 +71,11 @@ export default function ClothingDonationsPage() {
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
-      if (!formData.name.trim()) {
-        newErrors.name = "Name is required";
+      if (!formData.firstName.trim()) {
+        newErrors.firstName = "First name is required";
+      }
+      if (!formData.lastName.trim()) {
+        newErrors.lastName = "Last name is required";
       }
       if (!formData.phone.trim()) {
         newErrors.phone = "Phone number is required";
@@ -72,10 +85,14 @@ export default function ClothingDonationsPage() {
         newErrors.email = "Please enter a valid email address";
       }
     } else if (step === 2) {
-      // Check if at least one clothing type is selected
-      const hasTypeSelected = Object.values(formData.types).some(Boolean);
-      if (!hasTypeSelected) {
-        newErrors.types = "Please select at least one type of clothing";
+      // Check if at least one donation category is selected
+      const hasCategorySelected = Object.values(formData.categories).some(Boolean);
+
+      if (!hasCategorySelected) {
+        newErrors.categories = "Please select at least one donation category";
+      }
+      if(!formData.quantity) {
+         newErrors.quantity = "Please select at least 1 or more bags/boxes";
       }
     } else if (step === 3) {
       if (!formData.method) {
@@ -167,24 +184,12 @@ export default function ClothingDonationsPage() {
     }
   };
 
-  const handlePreferredContactChange = (type: "phone" | "email" | "text", checked: boolean) => {
-    handleChange("preferredContact", {
-      ...formData.preferredContact,
-      [type]: checked,
-    });
-  };
 
-  const handleTypesChange = (type: string, checked: boolean) => {
-    handleChange("types", {
-      ...formData.types,
-      [type]: checked,
-    });
-  };
 
-  const handleSeasonalChange = (season: string, checked: boolean) => {
-    handleChange("seasonal", {
-      ...formData.seasonal,
-      [season]: checked,
+  const handleCategoriesChange = (category: string, checked: boolean) => {
+    handleChange("categories", {
+      ...formData.categories,
+      [category]: checked,
     });
   };
 
@@ -220,21 +225,40 @@ export default function ClothingDonationsPage() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Contact Information</h3>
 
-              <div className="grid gap-2">
-                <Label htmlFor="name">
-                  Full Name <span className="text-red-700">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleChange("name", e.target.value)}
-                  placeholder="Jane Doe"
-                  required
-                  className={errors.name ? "border-red-500" : ""}
-                />
-                {errors.name && (
-                  <p className="text-red-500 text-xs mt-1">{errors.name}</p>
-                )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="firstName">
+                    First Name <span className="text-red-700">*</span>
+                  </Label>
+                  <Input
+                    id="firstName"
+                    value={formData.firstName}
+                    onChange={(e) => handleChange("firstName", e.target.value)}
+                    placeholder="Jane"
+                    required
+                    className={errors.firstName ? "border-red-500" : ""}
+                  />
+                  {errors.firstName && (
+                    <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+                  )}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="lastName">
+                    Last Name <span className="text-red-700">*</span>
+                  </Label>
+                  <Input
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={(e) => handleChange("lastName", e.target.value)}
+                    placeholder="Doe"
+                    required
+                    className={errors.lastName ? "border-red-500" : ""}
+                  />
+                  {errors.lastName && (
+                    <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
+                  )}
+                </div>
               </div>
 
               <div className="grid gap-2">
@@ -320,48 +344,53 @@ export default function ClothingDonationsPage() {
 
               <div className="grid gap-2">
                 <Label>
-                  Type of Clothing <span className="text-red-700">*</span>
+                  Donation Categories <span className="text-red-700">*</span>
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.types.men} onCheckedChange={(v) => handleTypesChange("men", Boolean(v))} />
-                    <span className="text-sm">Men's</span>
+                    <Checkbox checked={formData.categories.clothing} onCheckedChange={(v) => handleCategoriesChange("clothing", Boolean(v))} />
+                    <span className="text-sm">Clothing</span>
                   </label>
                   <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.types.women} onCheckedChange={(v) => handleTypesChange("women", Boolean(v))} />
-                    <span className="text-sm">Women's</span>
+                    <Checkbox checked={formData.categories.bricABrac} onCheckedChange={(v) => handleCategoriesChange("bricABrac", Boolean(v))} />
+                    <span className="text-sm">Bric-a-Brac</span>
                   </label>
                   <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.types.children} onCheckedChange={(v) => handleTypesChange("children", Boolean(v))} />
-                    <span className="text-sm">Children's</span>
+                    <Checkbox checked={formData.categories.food} onCheckedChange={(v) => handleCategoriesChange("food", Boolean(v))} />
+                    <span className="text-sm">Food</span>
                   </label>
-             
                   <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.types.accessories} onCheckedChange={(v) => handleTypesChange("accessories", Boolean(v))} />
-                    <span className="text-sm">Accessories</span>
+                    <Checkbox checked={formData.categories.toys} onCheckedChange={(v) => handleCategoriesChange("toys", Boolean(v))} />
+                    <span className="text-sm">Toys</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.furniture} onCheckedChange={(v) => handleCategoriesChange("furniture", Boolean(v))} />
+                    <span className="text-sm">Furniture</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.electronics} onCheckedChange={(v) => handleCategoriesChange("electronics", Boolean(v))} />
+                    <span className="text-sm">Electronics</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.schoolOfficeSupplies} onCheckedChange={(v) => handleCategoriesChange("schoolOfficeSupplies", Boolean(v))} />
+                    <span className="text-sm">School & Office Supplies</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.hygienePersonalCare} onCheckedChange={(v) => handleCategoriesChange("hygienePersonalCare", Boolean(v))} />
+                    <span className="text-sm">Hygiene & Personal Care</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.cleaningHouseholdEssentials} onCheckedChange={(v) => handleCategoriesChange("cleaningHouseholdEssentials", Boolean(v))} />
+                    <span className="text-sm">Cleaning & Household Essentials</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={formData.categories.petSupplies} onCheckedChange={(v) => handleCategoriesChange("petSupplies", Boolean(v))} />
+                    <span className="text-sm">Pet Supplies</span>
                   </label>
                 </div>
-                {errors.types && (
-                  <p className="text-red-500 text-xs mt-1">{errors.types}</p>
+                {errors.categories && (
+                  <p className="text-red-500 text-xs mt-1">{errors.categories}</p>
                 )}
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Condition of Items</Label>
-                <RadioGroup value={formData.condition} onValueChange={(value) => handleChange("condition", value)} className="grid grid-cols-1 gap-2">
-                  <label className="flex items-center gap-2">
-                    <RadioGroupItem value="new" />
-                    <span className="text-sm">New</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <RadioGroupItem value="gently" />
-                    <span className="text-sm">Lightly used</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <RadioGroupItem value="fair" />
-                    <span className="text-sm">Fair condition</span>
-                  </label>
-                </RadioGroup>
               </div>
 
               <div className="grid gap-2">
@@ -373,25 +402,12 @@ export default function ClothingDonationsPage() {
                   value={formData.quantity}
                   onChange={(e) => handleChange("quantity", e.target.value)}
                   placeholder="e.g., 3 bags"
+                  required
+                  className={errors.quantity ? "border-red-500" : ""}
                 />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Seasonal Items</Label>
-                <div className="flex gap-4 items-center">
-                  <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.seasonal.winter} onCheckedChange={(v) => handleSeasonalChange("winter", Boolean(v))} />
-                    <span className="text-sm">Winter</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.seasonal.summer} onCheckedChange={(v) => handleSeasonalChange("summer", Boolean(v))} />
-                    <span className="text-sm">Summer</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <Checkbox checked={formData.seasonal.allseason} onCheckedChange={(v) => handleSeasonalChange("allseason", Boolean(v))} />
-                    <span className="text-sm">All-season</span>
-                  </label>
-                </div>
+                {errors.quantity && (
+                  <p className="text-red-500 text-xs mt-1">{errors.quantity}</p>
+                )}
               </div>
             </div>
 
@@ -437,7 +453,7 @@ export default function ClothingDonationsPage() {
                 <Label htmlFor="dropoff-site">
                   Drop-off site <span className="text-red-700">*</span>
                 </Label>
-                <Select value={formData.method} onValueChange={(value) => handleChange("method", value)}>
+                <Select required value={formData.method} onValueChange={(value) => handleChange("method", value)}>
                   <SelectTrigger 
                     id="dropoff-site"
                     className={errors.method ? "border-red-500" : ""}
@@ -626,9 +642,9 @@ export default function ClothingDonationsPage() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Clothing Donations</CardTitle>
+                <CardTitle>Donations</CardTitle>
                 <CardDescription>
-                  Submit your clothing donation to Chosen 300
+                  Submit your donation to Chosen 300
                 </CardDescription>
               </div>
             </div>
