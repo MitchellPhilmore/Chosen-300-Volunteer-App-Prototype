@@ -509,25 +509,10 @@ export default function DonationsPage() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Donation Waiver and Release of Liability</h3>
+              <h3 className="text-lg font-medium">Tax Deduction Notice</h3>
               <div className="max-h-72 overflow-y-auto border rounded-md p-4 text-sm">
-                <p className="font-bold mb-2">
-                  CHOSEN 300 DONATION WAIVER AND RELEASE OF LIABILITY
-                </p>
                 <p className="mb-2">
-                  In consideration of my donation of clothing items to Chosen 300 (the "Organization"), I, the undersigned donor, intending to be legally bound, do hereby waive and forever release any and all rights and claims for damages or injuries that I may have against the Organization, its directors, officers, employees, agents, sponsors, volunteers, and affiliates (collectively, the "Released Parties"), for any and all injuries to me or my personal property related to the donation, collection, or handling of donated items.
-                </p>
-                <p className="mb-2">
-                  I acknowledge that donating items and participating in drop-off activities may involve certain risks. I assume all risks associated with the donation process, including but not limited to: transportation-related risks, handling of items, exposure to weather conditions, and contact with Organization staff or volunteers.
-                </p>
-                <p className="mb-2">
-                  I certify that all donated items are clean, safe, and in the condition stated in this form. I agree to follow any guidelines provided by the Organization regarding acceptable donation items and drop-off procedures.
-                </p>
-                <p className="mb-2">
-                  I grant permission to the Released Parties to use my name and donation information for promotional, educational, or other legitimate purposes, without compensation or further notice.
-                </p>
-                <p className="mb-2">
-                  By signing below, I acknowledge that I have read and fully understand this Waiver and Release of Liability, and agree to its terms freely and voluntarily without any inducement.
+                  Chosen 300 does not determine the value or deductibility of your donation. Please consult with the IRS or your tax advisor for direction.
                 </p>
               </div>
               
@@ -541,7 +526,7 @@ export default function DonationsPage() {
                   onCheckedChange={handleWaiverChange}
                 />
                 <Label htmlFor="waiver-acceptance" className="font-medium">
-                  I have read and agree to the terms of the Waiver and Release of Liability <span className="text-red-700">*</span>
+                  I have read and understand the Tax Deduction Notice <span className="text-red-700">*</span>
                 </Label>
               </div>
               {errors.waiverAccepted && (
