@@ -154,13 +154,27 @@ function validatePersonalInfo(data: any, isSpecialized: boolean) {
     phone: phoneSchema.refine((value) => value.length > 0, {
       message: "Phone number is required",
     }),
-    volunteerType: z.enum(["communityService", "employment"]),
+    volunteerType: z.enum(["communityService", "employment"], {
+      errorMap: () => ({
+        message: "Please select a registration type (Community Service or Employee)",
+      }),
+    }),
   });
 
   // Validate base schema first
   const baseResult = baseSchema.safeParse(data);
   if (!baseResult.success) {
-    throw baseResult.error;
+    // Transform the error to be more user-friendly for volunteerType
+    const formattedErrors = baseResult.error.errors.map((err) => {
+      if (err.path.includes("volunteerType")) {
+        return {
+          ...err,
+          message: "Please select a registration type (Community Service or Employee)",
+        };
+      }
+      return err;
+    });
+    throw new z.ZodError(formattedErrors);
   }
 
   // If community service, add specific validations
@@ -375,6 +389,15 @@ export default function Register() {
       ...prev,
       volunteerType: value,
     }));
+
+    // Clear volunteerType error when changed
+    if (errors.volunteerType) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.volunteerType;
+        return newErrors;
+      });
+    }
   };
 
   // Handle site selection
@@ -458,6 +481,21 @@ export default function Register() {
   const validateStep = () => {
     try {
       if (step === 1) {
+        // For specialized registrations, check if volunteerType is selected
+        if (
+          isSpecializedRegistration &&
+          formData.volunteerType !== "communityService" &&
+          formData.volunteerType !== "employment"
+        ) {
+          setErrors({
+            volunteerType:
+              "Please select a registration type (Community Service or Employee)",
+          });
+          toast.error("Please select a registration type", {
+            description: "Choose either Community Service or Employee",
+          });
+          return false;
+        }
         // Validate personal information
         validatePersonalInfo(formData, isSpecializedRegistration);
       } else if (step === 2) {
@@ -649,6 +687,11 @@ export default function Register() {
                   <Label>
                     Registration Type <span className="text-red-700">*</span>
                   </Label>
+                  {errors.volunteerType && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+                      {errors.volunteerType}
+                    </div>
+                  )}
                   <RadioGroup
                     value={formData.volunteerType}
                     onValueChange={handleVolunteerTypeChange}
