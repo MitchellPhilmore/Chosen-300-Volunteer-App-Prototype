@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "fix-cs-hours": "tsx scripts/fix-community-service-hours.ts"
   },
   "dependencies": {
     "@docuseal/signature-maker-react": "^1.0.2",
@@ -40,9 +41,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "15.2.4",
     "tailwindcss": "^4.1.3",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

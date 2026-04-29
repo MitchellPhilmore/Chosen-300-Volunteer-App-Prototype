@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Clock,
@@ -101,6 +101,7 @@ const DEFAULT_ADMIN_CODE = process.env.NEXT_PUBLIC_DEFAULT_ADMIN_CODE;
 
 export default function VolunteerDashboard() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const router = useRouter();
@@ -124,6 +125,9 @@ export default function VolunteerDashboard() {
   const [completedSessions, setCompletedSessions] = useState<
     VolunteerSession[]
   >([]);
+  const sessionMode = searchParams.get("mode");
+  const isSessionSpecialized =
+    volunteer?.volunteerType === "employment" || isCsSession;
 
   useEffect(() => {
     async function loadVolunteer() {
@@ -186,16 +190,27 @@ export default function VolunteerDashboard() {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (!volunteer) return;
+
+    if (volunteer.volunteerType === "employment") {
+      setIsCsSession(true);
+      return;
+    }
+
+    if (volunteer.volunteerType === "communityService") {
+      setIsCsSession(sessionMode !== "volunteer");
+      return;
+    }
+
+    setIsCsSession(false);
+  }, [volunteer, sessionMode]);
+
   const handleCheckIn = async () => {
     if (!volunteer) return;
 
-    // Admin code required for CS volunteers, CS sessions, or employment
-    if (
-      (volunteer.volunteerType === "communityService" ||
-        volunteer.volunteerType === "employment" ||
-        isCsSession) &&
-      !adminCode
-    ) {
+    // Admin code required only for specialized sessions (CS/Employment)
+    if (isSessionSpecialized && !adminCode) {
       toast.error("Please enter the admin code");
       return;
     }
@@ -225,12 +240,8 @@ export default function VolunteerDashboard() {
     setIsCheckingIn(true);
 
     try {
-      // Validate code for CS volunteers, employment, or CS sessions
-      if (
-        volunteer.volunteerType === "communityService" ||
-        volunteer.volunteerType === "employment" ||
-        isCsSession
-      ) {
+      // Validate code only for specialized sessions (CS/Employment)
+      if (isSessionSpecialized) {
         const dailyCodeResult = await getDailyCode();
         const submittedCode = adminCode.padStart(4, "0");
 
@@ -310,15 +321,11 @@ export default function VolunteerDashboard() {
           lastName: updatedVolunteerData.lastName,
         },
         isCommunityServiceSession:
-          isCsSession || updatedVolunteerData.volunteerType === "employment",
+          isSessionSpecialized,
       };
 
       // For normal volunteers, automatically create a completed session with 4-hour duration
-      if (
-        updatedVolunteerData.volunteerType !== "communityService" &&
-        updatedVolunteerData.volunteerType !== "employment" &&
-        !isCsSession
-      ) {
+      if (!isSessionSpecialized) {
         const checkInTime = new Date();
         const checkOutTime = new Date(checkInTime);
         checkOutTime.setHours(checkOutTime.getHours() + 4);
@@ -759,9 +766,11 @@ export default function VolunteerDashboard() {
                               : "Volunteer Check-In"}
                           </DialogTitle>
                           <DialogDescription>
-                            {volunteer.volunteerType === "employment"
-                              ? "Please select a location and enter the admin code provided by staff for your application activity."
-                              : "Please select a location and enter the admin code provided by staff."}
+                            {isSessionSpecialized
+                              ? volunteer.volunteerType === "employment"
+                                ? "Please select a location and enter the admin code provided by staff for your application activity."
+                                : "Please select a location and enter the admin code provided by staff."
+                              : "Please select a location to start your volunteer session."}
                           </DialogDescription>
                         </DialogHeader>
 
@@ -789,9 +798,8 @@ export default function VolunteerDashboard() {
                             </select>
                           </div>
 
-                          {/* Only show admin code for CS volunteers or CS sessions */}
-                          {(volunteer.volunteerType === "communityService" ||
-                            isCsSession) && (
+                          {/* Only show admin code for specialized sessions */}
+                          {isSessionSpecialized && (
                             <div className="grid gap-2">
                               <Label htmlFor="adminCode">Admin Code</Label>
                               <Input
@@ -815,6 +823,7 @@ export default function VolunteerDashboard() {
                             <Checkbox
                               id="isCsSession"
                               checked={isCsSession}
+                              disabled={volunteer.volunteerType === "employment"}
                               onCheckedChange={(checked) =>
                                 setIsCsSession(Boolean(checked))
                               }
@@ -830,9 +839,7 @@ export default function VolunteerDashboard() {
                           </div>
 
                           {/* Add notice about automatic checkout for normal volunteers */}
-                          {volunteer?.volunteerType !== "communityService" &&
-                            volunteer?.volunteerType !== "employment" &&
-                            !isCsSession && (
+                          {!isSessionSpecialized && (
                               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                                 <p className="text-sm text-blue-700">
                                   <span className="font-medium">Note:</span> As

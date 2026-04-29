@@ -45,6 +45,14 @@ export default function SignIn() {
     return emailRegex.test(input);
   };
 
+  const navigateVolunteerDashboard = (
+    id: string,
+    mode?: "volunteer" | "communityService"
+  ) => {
+    const query = mode ? `?mode=${mode}` : "";
+    router.push(`/volunteer-dashboard/${id}${query}`);
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -94,7 +102,7 @@ export default function SignIn() {
 
       // For regular volunteers and community service volunteers
       const volunteerMatch = allVolunteers.find(
-        (v: any) => !v.volunteerType || v.volunteerType !== "communityService"
+        (v: any) => v.volunteerType === "regular" || v.volunteerType === "communityService"
       );
 
       const communityServiceMatch = allVolunteers.find(
@@ -133,7 +141,12 @@ export default function SignIn() {
           // Store current volunteer ID in localStorage for session management
           localStorage.setItem("currentVolunteerId", id);
           toast.success("Signed in successfully as a volunteer!");
-          router.push(`/volunteer-dashboard/${id}`);
+          navigateVolunteerDashboard(
+            id,
+            volunteerMatch.volunteerType === "communityService"
+              ? "volunteer"
+              : undefined
+          );
           return;
         }
 
@@ -142,7 +155,7 @@ export default function SignIn() {
           // Store current community service ID in localStorage for session management
           localStorage.setItem("currentVolunteerId", id); // Using volunteer ID key for now
           toast.success("Signed in successfully for community service!");
-          router.push(`/volunteer-dashboard/${id}`);
+          navigateVolunteerDashboard(id, "communityService");
           return;
         }
       } else {
@@ -171,11 +184,11 @@ export default function SignIn() {
     } else if (role === "volunteer" && volunteer) {
       localStorage.setItem("currentVolunteerId", volunteer.id);
       toast.success("Signed in successfully as a volunteer!");
-      router.push(`/volunteer-dashboard/${volunteer.id}`);
+      navigateVolunteerDashboard(volunteer.id, "volunteer");
     } else if (role === "communityService" && communityService) {
       localStorage.setItem("currentVolunteerId", communityService.id);
       toast.success("Signed in successfully for community service!");
-      router.push(`/volunteer-dashboard/${communityService.id}`);
+      navigateVolunteerDashboard(communityService.id, "communityService");
     }
   };
 

@@ -46,6 +46,8 @@ import {
   saveDailyCode,
   getCodeAuditLog,
   saveCodeAuditLogEntry,
+  autoCheckoutCommunityServiceVolunteers,
+  getCommunityServiceSessionsApproachingLimit,
 } from "@/lib/firebase";
 import { Timestamp } from "firebase/firestore";
 
@@ -87,6 +89,7 @@ interface VolunteerSession {
   };
   checkInTimeTimestamp?: Timestamp;
   checkOutTimeTimestamp?: Timestamp;
+  isCommunityServiceSession?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -222,6 +225,13 @@ export default function AdminDashboard() {
     string | null
   >(null);
   const [isUpdatingCode, setIsUpdatingCode] = useState(false);
+  const [approachingLimitSessions, setApproachingLimitSessions] = useState<
+    VolunteerSession[]
+  >([]);
+  const [isRunningAutoCheckout, setIsRunningAutoCheckout] = useState(false);
+  const [lastAutoCheckoutTime, setLastAutoCheckoutTime] = useState<Date | null>(
+    null
+  );
 
   const router = useRouter();
 
@@ -438,10 +448,52 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadApproachingLimitSessions = useCallback(async () => {
+    try {
+      const result = await getCommunityServiceSessionsApproachingLimit(30);
+      if (result.success && result.data) {
+        setApproachingLimitSessions(result.data as VolunteerSession[]);
+      }
+    } catch (error) {
+      console.error("Error loading approaching limit sessions:", error);
+    }
+  }, []);
+
   useEffect(() => {
     setIsLoading(true);
     loadDashboardData();
-  }, [loadDashboardData]);
+    loadApproachingLimitSessions();
+  }, [loadDashboardData, loadApproachingLimitSessions]);
+
+  // Auto-run checkout every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const result = await autoCheckoutCommunityServiceVolunteers(6);
+        if (result.success && result.count && result.count > 0) {
+          setLastAutoCheckoutTime(new Date());
+          await loadDashboardData();
+          await loadApproachingLimitSessions();
+          console.log(
+            `Auto-checkout ran: ${result.count} volunteer(s) checked out`
+          );
+        }
+      } catch (error) {
+        console.error("Error in automatic auto-checkout:", error);
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [loadDashboardData, loadApproachingLimitSessions]);
+
+  // Refresh approaching limit sessions every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadApproachingLimitSessions();
+    }, 60 * 1000); // Every minute
+
+    return () => clearInterval(interval);
+  }, [loadApproachingLimitSessions]);
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return "N/A";
@@ -476,6 +528,23 @@ export default function AdminDashboard() {
         : "Regular";
     },
     [registeredVolunteers]
+  );
+
+  const getSessionTypeLabel = useCallback(
+    (session: VolunteerSession): string => {
+      if (session.isCommunityServiceSession === true) {
+        return "Community Service";
+      }
+      if (session.isCommunityServiceSession === false) {
+        return "Volunteer";
+      }
+
+      // Backward compatibility for legacy sessions without session type flag.
+      return session.volunteerInfo
+        ? getVolunteerType(session.volunteerInfo.id)
+        : "Unknown";
+    },
+    [getVolunteerType]
   );
 
   const generateCsv = (
@@ -565,9 +634,7 @@ export default function AdminDashboard() {
       session.volunteerInfo
         ? `${session.volunteerInfo.firstName} ${session.volunteerInfo.lastName}`
         : session.identifier,
-      session.volunteerInfo
-        ? getVolunteerType(session.volunteerInfo.id)
-        : "Unknown",
+      getSessionTypeLabel(session),
       session.volunteerInfo
         ? registeredVolunteers.find((v) => v.id === session.volunteerInfo?.id)
             ?.email || "No email"
@@ -1131,6 +1198,12 @@ export default function AdminDashboard() {
           >
             Donations ({donations.length})
           </TabsTrigger>
+          <TabsTrigger
+            value="auto-checkout"
+            className="data-[state=active]:bg-red-700 data-[state=active]:text-white"
+          >
+            Auto Checkout
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="border rounded-md p-0 md:p-4">
@@ -1153,9 +1226,7 @@ export default function AdminDashboard() {
                     <TableRow key={volunteer.id}>
                       <TableCell>{volunteer.identifier}</TableCell>
                       <TableCell>
-                        {volunteer.volunteerInfo
-                          ? getVolunteerType(volunteer.volunteerInfo.id)
-                          : "Unknown"}
+                        {getSessionTypeLabel(volunteer)}
                       </TableCell>
                       <TableCell>
                         {volunteer.volunteerInfo
@@ -1308,9 +1379,7 @@ export default function AdminDashboard() {
                     <TableRow key={session?.id}>
                       <TableCell>{session?.identifier}</TableCell>
                       <TableCell>
-                        {session?.volunteerInfo
-                          ? getVolunteerType(session?.volunteerInfo?.id)
-                          : "Unknown"}
+                        {getSessionTypeLabel(session)}
                       </TableCell>
                       <TableCell>
                         {session?.volunteerInfo
@@ -1572,6 +1641,189 @@ export default function AdminDashboard() {
               No donations found in Firestore
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="auto-checkout" className="border rounded-md p-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Community Service Auto-Checkout</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">
+                      Automatically check out community service volunteers after
+                      6 hours of work.
+                    </p>
+                    {lastAutoCheckoutTime && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Last run: {lastAutoCheckoutTime.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={async () => {
+                        setIsRunningAutoCheckout(true);
+                        try {
+                          const result =
+                            await autoCheckoutCommunityServiceVolunteers(6);
+                          if (result.success) {
+                            setLastAutoCheckoutTime(new Date());
+                            toast.success(
+                              `Auto-checkout completed: ${result.count} volunteer(s) checked out`,
+                              {
+                                description: result.errors
+                                  ? `${result.errors.length} error(s) occurred`
+                                  : undefined,
+                              }
+                            );
+                            await loadDashboardData();
+                            await loadApproachingLimitSessions();
+                          } else {
+                            throw result.error || new Error("Auto-checkout failed");
+                          }
+                        } catch (error) {
+                          console.error("Auto-checkout error:", error);
+                          toast.error("Auto-checkout failed", {
+                            description: "Please try again or check the console for details.",
+                          });
+                        } finally {
+                          setIsRunningAutoCheckout(false);
+                        }
+                      }}
+                      disabled={isRunningAutoCheckout}
+                      className="bg-red-700 hover:bg-red-800"
+                    >
+                      {isRunningAutoCheckout ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        "Run Auto Checkout (6 hours)"
+                      )}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        setIsRunningAutoCheckout(true);
+                        try {
+                          // Test with 5 minutes (0.083 hours)
+                          const result =
+                            await autoCheckoutCommunityServiceVolunteers(5 / 60);
+                          if (result.success) {
+                            setLastAutoCheckoutTime(new Date());
+                            toast.success(
+                              `Test auto-checkout completed: ${result.count} volunteer(s) checked out`,
+                              {
+                                description: result.errors
+                                  ? `${result.errors.length} error(s) occurred`
+                                  : "Test mode: checked out sessions over 5 minutes",
+                              }
+                            );
+                            await loadDashboardData();
+                            await loadApproachingLimitSessions();
+                          } else {
+                            throw result.error || new Error("Auto-checkout failed");
+                          }
+                        } catch (error) {
+                          console.error("Auto-checkout error:", error);
+                          toast.error("Auto-checkout failed", {
+                            description: "Please try again or check the console for details.",
+                          });
+                        } finally {
+                          setIsRunningAutoCheckout(false);
+                        }
+                      }}
+                      disabled={isRunningAutoCheckout}
+                      variant="outline"
+                      className="border-yellow-600 text-yellow-700 hover:bg-yellow-50"
+                    >
+                      {isRunningAutoCheckout ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        "🧪 Test (5 min)"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">
+                    Sessions Approaching 6-Hour Limit
+                  </h3>
+                  {approachingLimitSessions.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Volunteer</TableHead>
+                            <TableHead>Check-In Time</TableHead>
+                            <TableHead>Time Elapsed</TableHead>
+                            <TableHead>Time Remaining</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {approachingLimitSessions.map((session) => {
+                            const checkIn = session.checkInTimeTimestamp?.toDate
+                              ? session.checkInTimeTimestamp.toDate()
+                              : new Date(session.checkInTime);
+                            const elapsedMs = Date.now() - checkIn.getTime();
+                            const elapsedHours = elapsedMs / (1000 * 60 * 60);
+                            const remainingHours = 6 - elapsedHours;
+                            const remainingMinutes = Math.max(
+                              0,
+                              Math.floor(remainingHours * 60)
+                            );
+                            const isUrgent = remainingMinutes <= 30;
+
+                            return (
+                              <TableRow
+                                key={session.id}
+                                className={
+                                  isUrgent ? "bg-red-50" : "bg-yellow-50"
+                                }
+                              >
+                                <TableCell>
+                                  {session.volunteerInfo?.firstName || "Unknown"}{" "}
+                                  {session.volunteerInfo?.lastName || ""}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDate(session.checkInTime)}
+                                </TableCell>
+                                <TableCell>
+                                  {elapsedHours.toFixed(1)} hours
+                                </TableCell>
+                                <TableCell>
+                                  <span
+                                    className={
+                                      isUrgent
+                                        ? "text-red-700 font-semibold"
+                                        : "text-yellow-700"
+                                    }
+                                  >
+                                    {remainingMinutes} minutes
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No community service sessions approaching the 6-hour limit.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
       </Tabs>

@@ -1040,6 +1040,167 @@ export const getMusicianByEmail = async (email: string) => {
   }
 };
 
+/**
+ * Auto-checkout community service volunteers who have been active for a specified duration
+ * @param hoursThreshold - Number of hours before auto-checkout (default 6)
+ * @returns Promise with count of volunteers checked out and any errors
+ */
+export const autoCheckoutCommunityServiceVolunteers = async (
+  hoursThreshold: number = 6
+) => {
+  try {
+    const thresholdTime = new Date();
+    thresholdTime.setTime(thresholdTime.getTime() - hoursThreshold * 60 * 60 * 1000);
+    const thresholdTimestamp = Timestamp.fromDate(thresholdTime);
+
+    // Get ALL active volunteer sessions (we'll filter in memory to catch any missing flags)
+    const q = query(collection(db, ACTIVE_VOLUNTEER_SESSIONS_COLLECTION));
+    const querySnapshot = await getDocs(q);
+    const allSessions: any[] = [];
+
+    querySnapshot.forEach((doc) => {
+      allSessions.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    // Filter in memory for CS sessions that exceed the threshold
+    const sessionsToCheckout = allSessions.filter((session) => {
+      // Check if it's a community service session
+      const isCS = session.isCommunityServiceSession === true;
+      
+      if (!isCS) return false;
+      
+      // Get check-in time
+      const checkInTime = session.checkInTimeTimestamp?.toDate
+        ? session.checkInTimeTimestamp.toDate()
+        : new Date(session.checkInTime);
+      
+      // Calculate elapsed time
+      const elapsedMs = Date.now() - checkInTime.getTime();
+      const elapsedHours = elapsedMs / (1000 * 60 * 60);
+      const elapsedMinutes = elapsedMs / (1000 * 60);
+      
+      // Log for debugging
+      console.log(
+        `Session ${session.id}: CS=${isCS}, Elapsed=${elapsedMinutes.toFixed(1)} min, Threshold=${(hoursThreshold * 60).toFixed(1)} min`
+      );
+      
+      // Include if it's CS and exceeds threshold
+      return elapsedHours >= hoursThreshold;
+    });
+
+    console.log(`Found ${allSessions.length} total active sessions`);
+    console.log(`Found ${sessionsToCheckout.length} CS sessions to checkout`);
+
+    if (sessionsToCheckout.length === 0) {
+      return {
+        success: true,
+        count: 0,
+        message: "No community service volunteers need auto-checkout",
+      };
+    }
+
+    let checkedOutCount = 0;
+    const errors: any[] = [];
+
+    for (const session of sessionsToCheckout) {
+      try {
+        const checkInTime = session.checkInTimeTimestamp?.toDate
+          ? session.checkInTimeTimestamp.toDate()
+          : new Date(session.checkInTime);
+        const checkOutTime = new Date(checkInTime);
+        checkOutTime.setHours(checkOutTime.getHours() + hoursThreshold); // Cap at threshold hours
+
+        const completedSessionData = {
+          ...session,
+          checkOutTime: checkOutTime.toISOString(),
+          checkOutTimeTimestamp: Timestamp.fromDate(checkOutTime),
+          hoursWorked: hoursThreshold.toFixed(2), // Exactly threshold hours
+          autoCheckedOut: true,
+          autoCheckoutReason: `${hoursThreshold}-hour limit reached`,
+          updatedAt: Timestamp.now(),
+        };
+
+        // Remove fields that shouldn't be in completed session
+        delete completedSessionData.id;
+
+        await setDoc(
+          doc(db, COMPLETED_VOLUNTEER_SESSIONS_COLLECTION, session.id),
+          completedSessionData
+        );
+
+        await deleteDoc(
+          doc(db, ACTIVE_VOLUNTEER_SESSIONS_COLLECTION, session.id)
+        );
+
+        checkedOutCount++;
+      } catch (error) {
+        console.error(
+          `Error auto-checking out session ${session.id}:`,
+          error
+        );
+        errors.push({ sessionId: session.id, error });
+      }
+    }
+
+    return {
+      success: true,
+      count: checkedOutCount,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error) {
+    console.error("Error in autoCheckoutCommunityServiceVolunteers:", error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get community service sessions approaching the 6-hour limit
+ * @param warningMinutes - Minutes before limit to warn (default 30)
+ * @returns Array of sessions approaching the limit
+ */
+export const getCommunityServiceSessionsApproachingLimit = async (
+  warningMinutes: number = 30
+) => {
+  try {
+    const warningTime = new Date();
+    warningTime.setHours(warningTime.getHours() - (6 - warningMinutes / 60));
+    const warningTimestamp = Timestamp.fromDate(warningTime);
+
+    const sixHoursAgo = new Date();
+    sixHoursAgo.setHours(sixHoursAgo.getHours() - 6);
+    const sixHoursAgoTimestamp = Timestamp.fromDate(sixHoursAgo);
+
+    // Get sessions between warning time and 6 hours
+    const q = query(
+      collection(db, ACTIVE_VOLUNTEER_SESSIONS_COLLECTION),
+      where("isCommunityServiceSession", "==", true),
+      where("checkInTimeTimestamp", ">=", warningTimestamp),
+      where("checkInTimeTimestamp", "<=", sixHoursAgoTimestamp)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const sessions: any[] = [];
+
+    querySnapshot.forEach((doc) => {
+      sessions.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    return { success: true, data: sessions };
+  } catch (error) {
+    console.error(
+      "Error getting community service sessions approaching limit:",
+      error
+    );
+    return { success: false, error };
+  }
+};
+
 // Export auth functions
 export { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
