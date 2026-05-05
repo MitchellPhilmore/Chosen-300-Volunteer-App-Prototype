@@ -241,6 +241,11 @@ export default function VolunteerDashboard() {
     // --- Begin Daily Code Validation --- //
     setIsCheckingIn(true);
 
+    const redirectHomeForNextUser = () => {
+      localStorage.removeItem("appLocale");
+      router.push("/");
+    };
+
     try {
       // Validate code only for specialized sessions (CS/Employment)
       if (isSessionSpecialized) {
@@ -361,7 +366,7 @@ export default function VolunteerDashboard() {
           // Redirect to home page
           setTimeout(() => {
             toast.info(t("volunteerDashboard.toasts.redirectingHome"));
-            router.push("/");
+            redirectHomeForNextUser();
           }, 4000);
         } else {
           throw result.error || new Error("Failed to save session");
@@ -385,7 +390,7 @@ export default function VolunteerDashboard() {
           // Redirect to home page for CS volunteers as well
           setTimeout(() => {
             toast.info(t("volunteerDashboard.toasts.redirectingHome"));
-            router.push("/");
+            redirectHomeForNextUser();
           }, 2500); // Redirect after 2.5 seconds
         } else {
           throw result.error || new Error("Failed to save active session");
@@ -782,21 +787,23 @@ export default function VolunteerDashboard() {
                         <DialogHeader>
                           <DialogTitle>
                             {volunteer.volunteerType === "employment"
-                              ? "Application Check-In"
-                              : "Volunteer Check-In"}
+                              ? t("volunteerDashboard.modal.applicationCheckInTitle")
+                              : t("volunteerDashboard.modal.volunteerCheckInTitle")}
                           </DialogTitle>
                           <DialogDescription>
                             {isSessionSpecialized
                               ? volunteer.volunteerType === "employment"
-                                ? "Please select a location and enter the admin code provided by staff for your application activity."
-                                : "Please select a location and enter the admin code provided by staff."
-                              : "Please select a location to start your volunteer session."}
+                                ? t("volunteerDashboard.modal.applicationCheckInDescription")
+                                : t("volunteerDashboard.modal.specializedCheckInDescription")
+                              : t("volunteerDashboard.modal.regularCheckInDescription")}
                           </DialogDescription>
                         </DialogHeader>
 
                         <div className="grid gap-4 py-4">
                           <div className="grid gap-2">
-                            <Label htmlFor="location">Select Location</Label>
+                            <Label htmlFor="location">
+                              {t("volunteerDashboard.modal.selectLocationLabel")}
+                            </Label>
                             <select
                               id="location"
                               value={selectedLocation}
@@ -805,23 +812,29 @@ export default function VolunteerDashboard() {
                               }
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              <option value="">Select a location</option>
+                              <option value="">
+                                {t("volunteerDashboard.modal.selectLocationPlaceholder")}
+                              </option>
                               <option value="West Philadelphia">
-                                West Philadelphia
+                                {t("register.westPhiladelphia")}
                               </option>
                               <option value="Spring Garden">
-                                Spring Garden
+                                {t("register.springGarden")}
                               </option>
-                              <option value="Ambler">Ambler</option>
-                              <option value="Reading">Reading</option>
-                              <option value="Remote/Other">Remote/Other</option>
+                              <option value="Ambler">{t("register.ambler")}</option>
+                              <option value="Reading">{t("register.reading")}</option>
+                              <option value="Remote/Other">
+                                {t("volunteerDashboard.modal.remoteOther")}
+                              </option>
                             </select>
                           </div>
 
                           {/* Only show admin code for specialized sessions */}
                           {isSessionSpecialized && (
                             <div className="grid gap-2">
-                              <Label htmlFor="adminCode">Admin Code</Label>
+                              <Label htmlFor="adminCode">
+                                {t("volunteerDashboard.modal.adminCodeLabel")}
+                              </Label>
                               <Input
                                 id="adminCode"
                                 value={adminCode}
@@ -832,7 +845,9 @@ export default function VolunteerDashboard() {
                                       .slice(0, 4)
                                   )
                                 }
-                                placeholder="Enter the code provided by staff"
+                                placeholder={t(
+                                  "volunteerDashboard.modal.adminCodePlaceholder"
+                                )}
                                 type="text"
                                 maxLength={4}
                               />
@@ -853,8 +868,8 @@ export default function VolunteerDashboard() {
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
                               {volunteer.volunteerType === "employment"
-                                ? "This session is for Employee hours"
-                                : "This session is for Community Service hours"}
+                                ? t("volunteerDashboard.modal.employeeSessionLabel")
+                                : t("volunteerDashboard.modal.communityServiceSessionLabel")}
                             </Label>
                           </div>
 
@@ -862,11 +877,10 @@ export default function VolunteerDashboard() {
                           {!isSessionSpecialized && (
                               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                                 <p className="text-sm text-blue-700">
-                                  <span className="font-medium">Note:</span> As
-                                  a regular volunteer, your session will be
-                                  automatically completed with a 4-hour
-                                  duration. You don't need to check out
-                                  manually.
+                                  <span className="font-medium">
+                                    {t("volunteerDashboard.modal.noteLabel")}
+                                  </span>{" "}
+                                  {t("volunteerDashboard.modal.autoCheckoutNotice")}
                                 </p>
                               </div>
                             )}
@@ -876,13 +890,11 @@ export default function VolunteerDashboard() {
                             volunteer?.volunteerType !== "employment" && (
                               <div className="space-y-4 border-t pt-4 mt-4">
                                 <p className="text-sm text-gray-600">
-                                  Please provide your Community Service details
-                                  below. This will update your volunteer
-                                  profile.
+                                  {t("volunteerDashboard.modal.communityServiceDetails")}
                                 </p>
                                 <div className="space-y-2">
                                   <Label htmlFor="csReasonDialog">
-                                    Reason for Service{" "}
+                                    {t("register.reasonForService")}{" "}
                                     <span className="text-red-700">*</span>
                                   </Label>
                                   <Select
@@ -890,22 +902,26 @@ export default function VolunteerDashboard() {
                                     onValueChange={setCsReason}
                                   >
                                     <SelectTrigger id="csReasonDialog">
-                                      <SelectValue placeholder="Select a reason" />
+                                      <SelectValue
+                                        placeholder={t("register.selectReason")}
+                                      />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="court-ordered">
-                                        Court ordered
+                                        {t("register.courtOrdered")}
                                       </SelectItem>
                                       <SelectItem value="school">
-                                        School
+                                        {t("register.school")}
                                       </SelectItem>
-                                      <SelectItem value="work">Work</SelectItem>
+                                      <SelectItem value="work">
+                                        {t("register.work")}
+                                      </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor="csInstitutionDialog">
-                                    Assigning Institution{" "}
+                                    {t("register.assigningInstitution")}{" "}
                                     <span className="text-red-700">*</span>
                                   </Label>
                                   <Input
@@ -914,7 +930,9 @@ export default function VolunteerDashboard() {
                                     onChange={(e) =>
                                       setCsInstitution(e.target.value)
                                     }
-                                    placeholder="e.g., Philadelphia Municipal Court"
+                                    placeholder={t(
+                                      "volunteerDashboard.modal.assigningInstitutionPlaceholder"
+                                    )}
                                     required
                                   />
                                 </div>
@@ -931,10 +949,10 @@ export default function VolunteerDashboard() {
                             {isCheckingIn ? (
                               <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Checking in...
+                                {t("volunteerDashboard.modal.checkingIn")}
                               </>
                             ) : (
-                              "Complete Check-In"
+                              t("volunteerDashboard.modal.completeCheckIn")
                             )}
                           </Button>
                         </DialogFooter>

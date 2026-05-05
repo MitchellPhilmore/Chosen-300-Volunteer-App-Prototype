@@ -27,6 +27,11 @@ export default function SplashScreen() {
   useEffect(() => {
     const hasLocale = Boolean(localStorage.getItem("appLocale"));
     setNeedsLanguageSelection(!hasLocale);
+
+    // When no locale is stored (shared/kiosk flow), always start from English.
+    if (!hasLocale) {
+      setLocale("en");
+    }
   }, []);
 
   const container = {
