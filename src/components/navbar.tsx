@@ -10,11 +10,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/i18n/i18n-context";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const router = useRouter();
+  const { locale, setLocale, t, isAdminRoute } = useI18n();
 
   useEffect(() => {
     const loggedIn = localStorage.getItem("isAdminLoggedIn") === "true";
@@ -39,8 +41,19 @@ export default function Navbar() {
               className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t("navbar.logout")}
             </Button>
+          )}
+          {!isAdminRoute && (
+            <select
+              aria-label={t("navbar.language")}
+              value={locale}
+              onChange={(e) => setLocale(e.target.value as "en" | "es")}
+              className="h-9 rounded-md border border-gray-300 px-2 text-sm"
+            >
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+            </select>
           )}
         </div>
 
@@ -62,12 +75,23 @@ export default function Navbar() {
                   className="border-gray-400 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                  {t("navbar.logout")}
                 </Button>
+              )}
+              {!isAdminRoute && (
+                <select
+                  aria-label={t("navbar.language")}
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value as "en" | "es")}
+                  className="h-9 rounded-md border border-gray-300 px-2 text-sm"
+                >
+                  <option value="en">EN</option>
+                  <option value="es">ES</option>
+                </select>
               )}
               <Link href="/" onClick={() => setIsOpen(false)} passHref>
                 <Button variant="ghost" className="w-full justify-start">
-                  Home
+                  {t("navbar.home")}
                 </Button>
               </Link>
             </div>

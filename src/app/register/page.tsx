@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useI18n } from "@/i18n/i18n-context";
 
 // Define the Zod schema for form validation
 const emailSchema = z
@@ -266,6 +267,7 @@ function validateWaiver(data: any) {
 
 export default function Register() {
   const router = useRouter();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -374,13 +376,10 @@ export default function Register() {
 
     if (!regex.test(e.key) && !isControlKey) {
       e.preventDefault();
-      toast.error(
-        "Names can only contain letters, spaces, hyphens, and apostrophes",
-        {
-          duration: 2000,
-          id: "name-validation", // Prevent multiple toasts
-        }
-      );
+      toast.error(t("register.errors.nameInvalidChars"), {
+        duration: 2000,
+        id: "name-validation", // Prevent multiple toasts
+      });
     }
   };
 
@@ -445,7 +444,7 @@ export default function Register() {
         waiverSignature: data.base64,
       }));
       setSignatureSaved(true);
-      toast.success("Signature saved successfully");
+      toast.success(t("register.signatureSavedSuccess"));
 
       // Clear signature error when changed
       if (errors.waiverSignature) {
@@ -477,6 +476,40 @@ export default function Register() {
     }
   };
 
+  const translateValidationMessage = (message: string) => {
+    const map: Record<string, string> = {
+      "Please enter a valid email address": t("register.errors.invalidEmail"),
+      "Phone number must be exactly 10 digits (e.g., 2156678899)":
+        t("register.errors.invalidPhone"),
+      "Name is required": t("register.errors.nameRequired"),
+      "Name can only contain letters, spaces, hyphens, and apostrophes":
+        t("register.errors.nameInvalidChars"),
+      "Field contains invalid characters":
+        t("register.errors.fieldInvalidChars"),
+      "Email address is required": t("register.errors.emailRequired"),
+      "Phone number is required": t("register.errors.phoneRequired"),
+      "Please select a preferred site": t("register.errors.siteRequired"),
+      "You must accept the waiver to continue":
+        t("register.errors.waiverAcceptRequired"),
+      "You must sign the waiver to continue":
+        t("register.errors.waiverSignatureRequired"),
+      "Please select a reason for your community service":
+        t("register.errors.serviceReasonRequired"),
+      "Please specify your reason for community service":
+        t("register.errors.serviceReasonOtherRequired"),
+      "Please enter the institution requiring your service":
+        t("register.errors.serviceInstitutionRequired"),
+      "Reason contains invalid characters":
+        t("register.errors.reasonInvalidChars"),
+      "Institution name contains invalid characters":
+        t("register.errors.institutionInvalidChars"),
+      "Please select a registration type (Community Service or Employee)":
+        t("register.errors.registrationTypeRequired"),
+    };
+
+    return map[message] || message;
+  };
+
   // Form validation for each step using Zod
   const validateStep = () => {
     try {
@@ -488,11 +521,10 @@ export default function Register() {
           formData.volunteerType !== "employment"
         ) {
           setErrors({
-            volunteerType:
-              "Please select a registration type (Community Service or Employee)",
+            volunteerType: t("register.errors.registrationTypeRequired"),
           });
-          toast.error("Please select a registration type", {
-            description: "Choose either Community Service or Employee",
+          toast.error(t("register.errors.registrationTypeToastTitle"), {
+            description: t("register.errors.registrationTypeToastDescription"),
           });
           return false;
         }
@@ -516,7 +548,7 @@ export default function Register() {
         error.errors.forEach((err) => {
           // Get the field name from the path
           const fieldName = err.path.join(".");
-          errorMap[fieldName] = err.message;
+          errorMap[fieldName] = translateValidationMessage(err.message);
         });
 
         // Set the errors
@@ -524,12 +556,12 @@ export default function Register() {
 
         // Show the first error as a toast
         if (error.errors.length > 0) {
-          toast.error(error.errors[0].message);
+          toast.error(translateValidationMessage(error.errors[0].message));
         }
       } else {
         // Handle unexpected errors
         console.error("Validation error:", error);
-        toast.error("An error occurred during validation");
+        toast.error(t("register.errors.validationFailed"));
       }
       return false;
     }
@@ -543,16 +575,16 @@ export default function Register() {
           if (!formData.email) {
             setErrors((prev) => ({
               ...prev,
-              email: "Email address is required",
+              email: t("register.errors.emailRequired"),
             }));
           }
           if (!formData.phone) {
             setErrors((prev) => ({
               ...prev,
-              phone: "Phone number is required",
+              phone: t("register.errors.phoneRequired"),
             }));
           }
-          toast.error("Please provide both email and phone number");
+          toast.error(t("register.errors.emailPhoneRequired"));
           return;
         }
 
@@ -564,10 +596,11 @@ export default function Register() {
             if (isDuplicate) {
               setErrors({
                 ...errors,
-                duplicate:
-                  message || "This volunteer already exists in our system.",
+                duplicate: message || t("register.errors.duplicateVolunteer"),
               });
-              toast.error("Registration failed. " + message);
+              toast.error(
+                `${t("register.errors.registrationFailed")} ${message || ""}`.trim()
+              );
               setIsLoading(false);
               return;
             }
@@ -579,7 +612,7 @@ export default function Register() {
           })
           .catch((error) => {
             console.error("Error checking for duplicate volunteer:", error);
-            toast.error("An error occurred. Please try again.");
+            toast.error(t("register.errors.genericTryAgain"));
             setIsLoading(false);
           });
       } else {
@@ -628,8 +661,8 @@ export default function Register() {
       const result = await saveVolunteer(newVolunteer);
 
       if (result.success) {
-        toast.success("Registration successful!", {
-          description: "Thank you for registering as a volunteer.",
+        toast.success(t("register.registrationSuccessTitle"), {
+          description: t("register.registrationSuccessDescription"),
         });
 
         // Try to save to localStorage as a backup, but don't block registration if it fails
@@ -647,14 +680,14 @@ export default function Register() {
 
         router.push(`/volunteer-dashboard/${volunteerId}`);
       } else {
-        toast.error("Registration failed", {
-          description: "Please try again or contact support.",
+        toast.error(t("register.errors.registrationFailed"), {
+          description: t("register.errors.tryAgainOrSupport"),
         });
       }
     } catch (error) {
       console.error("Error during registration:", error);
-      toast.error("Registration failed", {
-        description: "Please try again or contact support.",
+      toast.error(t("register.errors.registrationFailed"), {
+        description: t("register.errors.tryAgainOrSupport"),
       });
     } finally {
       setIsLoading(false);
@@ -673,7 +706,9 @@ export default function Register() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Personal Information</h3>
+              <h3 className="text-lg font-medium">
+                {t("register.personalInformation")}
+              </h3>
 
               {errors.duplicate && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
@@ -685,7 +720,8 @@ export default function Register() {
               {isSpecializedRegistration && (
                 <div className="space-y-4">
                   <Label>
-                    Registration Type <span className="text-red-700">*</span>
+                    {t("register.registrationType")}{" "}
+                    <span className="text-red-700">*</span>
                   </Label>
                   {errors.volunteerType && (
                     <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
@@ -706,7 +742,7 @@ export default function Register() {
                         htmlFor="communityService"
                         className="font-medium cursor-pointer"
                       >
-                        Community Service
+                        {t("register.communityService")}
                       </Label>
                     </div>
 
@@ -716,7 +752,7 @@ export default function Register() {
                         htmlFor="employment"
                         className="font-medium cursor-pointer"
                       >
-                        Employee
+                        {t("register.employee")}
                       </Label>
                     </div>
                   </RadioGroup>
@@ -726,7 +762,7 @@ export default function Register() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">
-                    First Name <span className="text-red-700">*</span>
+                    {t("register.firstName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="firstName"
@@ -746,7 +782,7 @@ export default function Register() {
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName">
-                    Last Name <span className="text-red-700">*</span>
+                    {t("register.lastName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="lastName"
@@ -768,7 +804,7 @@ export default function Register() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">
-                    Email Address
+                    {t("register.emailAddress")}
                     <span className="text-red-700">*</span>
                   </Label>
                   <Input
@@ -787,7 +823,7 @@ export default function Register() {
 
                 <div className="space-y-2">
                   <Label htmlFor="phone">
-                    Phone Number
+                    {t("register.phoneNumber")}
                     <span className="text-red-700">*</span>
                   </Label>
                   <Input
@@ -797,7 +833,7 @@ export default function Register() {
                     value={formData.phone}
                     onChange={handleChange}
                     required={true}
-                    placeholder="10 digits only (e.g., 2156678899)"
+                    placeholder={t("register.phonePlaceholder")}
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && (
@@ -807,7 +843,7 @@ export default function Register() {
               </div>
 
               <p className="text-sm text-gray-500 italic mt-1">
-                Both email and phone are required for registration.
+                {t("register.emailPhoneRequired")}
               </p>
 
               {/* Only show these sections for specialized registrations with community service type */}
@@ -815,12 +851,12 @@ export default function Register() {
                 formData.volunteerType === "communityService" && (
                   <div className="space-y-4 border-t pt-4 mt-4">
                     <h4 className="font-medium">
-                      Community Service Information
+                      {t("register.communityServiceInformation")}
                     </h4>
 
                     <div className="space-y-2">
                       <Label htmlFor="serviceReason">
-                        Reason for Service{" "}
+                        {t("register.reasonForService")}{" "}
                         <span className="text-red-700">*</span>
                       </Label>
                       <Select
@@ -833,15 +869,15 @@ export default function Register() {
                             errors.serviceReason ? "border-red-500" : ""
                           }`}
                         >
-                          <SelectValue placeholder="Select a reason" />
+                          <SelectValue placeholder={t("register.selectReason")} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="court-ordered">
-                            Court ordered
+                            {t("register.courtOrdered")}
                           </SelectItem>
-                          <SelectItem value="school">School</SelectItem>
-                          <SelectItem value="work">Work</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="school">{t("register.school")}</SelectItem>
+                          <SelectItem value="work">{t("register.work")}</SelectItem>
+                          <SelectItem value="other">{t("register.other")}</SelectItem>
                         </SelectContent>
                       </Select>
                       {errors.serviceReason && (
@@ -857,7 +893,7 @@ export default function Register() {
                             name="serviceReasonOther"
                             value={formData.serviceReasonOther}
                             onChange={handleChange}
-                            placeholder="Please specify your reason"
+                            placeholder={t("register.specifyReason")}
                             className={`mt-1 ${
                               errors.serviceReasonOther ? "border-red-500" : ""
                             }`}
@@ -874,7 +910,7 @@ export default function Register() {
 
                     <div className="space-y-2">
                       <Label htmlFor="serviceInstitution">
-                        Assigning Institution{" "}
+                        {t("register.assigningInstitution")}{" "}
                         <span className="text-red-700">*</span>
                       </Label>
                       <Input
@@ -882,7 +918,7 @@ export default function Register() {
                         name="serviceInstitution"
                         value={formData.serviceInstitution}
                         onChange={handleChange}
-                        placeholder="e.g., Philadelphia Municipal Court, Central High School"
+                        placeholder={t("register.assigningInstitutionPlaceholder")}
                         required
                         className={
                           errors.serviceInstitution ? "border-red-500" : ""
@@ -901,9 +937,9 @@ export default function Register() {
               {isSpecializedRegistration &&
                 formData.volunteerType === "employment" && (
                   <div className="space-y-4 border-t pt-4 mt-4">
-                    <h4 className="font-medium">Employee Information</h4>
+                    <h4 className="font-medium">{t("register.employeeInfo")}</h4>
                     <p className="text-sm text-gray-600">
-                      Thank you for your interest in employment opportunities.
+                      {t("register.employeeInfoDescription")}
                     </p>
                   </div>
                 )}
@@ -916,7 +952,7 @@ export default function Register() {
                 onClick={() => router.push("/")}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 className="w-1/2"
@@ -928,7 +964,7 @@ export default function Register() {
                   onClick={nextStep}
                   className="w-full bg-red-700 hover:bg-red-800 h-auto whitespace-normal py-3 text-center"
                 >
-                  Continue to Site Selection
+                  {t("register.continueToSiteSelection")}
                 </Button>
               </motion.div>
             </div>
@@ -946,7 +982,7 @@ export default function Register() {
           >
             <div className="space-y-4">
               <h3 className="text-lg font-medium">
-                Select Your Preferred Site
+                {t("register.selectPreferredSite")}
               </h3>
 
               <div className="space-y-4">
@@ -968,7 +1004,7 @@ export default function Register() {
                       htmlFor="west-philadelphia"
                       className="font-medium cursor-pointer"
                     >
-                      West Philadelphia
+                      {t("register.westPhiladelphia")}
                     </Label>
                   </div>
 
@@ -982,7 +1018,7 @@ export default function Register() {
                       htmlFor="spring-garden"
                       className="font-medium cursor-pointer"
                     >
-                      Spring Garden
+                      {t("register.springGarden")}
                     </Label>
                   </div>
 
@@ -996,7 +1032,7 @@ export default function Register() {
                       htmlFor="ambler"
                       className="font-medium cursor-pointer"
                     >
-                      Ambler
+                      {t("register.ambler")}
                     </Label>
                   </div>
 
@@ -1010,7 +1046,7 @@ export default function Register() {
                       htmlFor="reading"
                       className="font-medium cursor-pointer"
                     >
-                      Reading
+                      {t("register.reading")}
                     </Label>
                   </div>
                 </RadioGroup>
@@ -1027,7 +1063,7 @@ export default function Register() {
                 onClick={prevStep}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Back
+                {t("common.back")}
               </Button>
 
               <motion.div
@@ -1040,7 +1076,7 @@ export default function Register() {
                   onClick={nextStep}
                   className="w-full bg-red-700 hover:bg-red-800"
                 >
-                  Continue to Waiver
+                  {t("register.continueToWaiver")}
                 </Button>
               </motion.div>
             </div>
@@ -1057,79 +1093,35 @@ export default function Register() {
             className="space-y-6"
           >
             <h3 className="text-lg font-medium">
-              Volunteer Waiver and Release of Liability
+              {t("register.waiver.title")}
             </h3>
             <div className="max-h-72 overflow-y-auto border rounded-md p-4 text-sm">
               <p className="font-bold mb-2">
-                CHOSEN 300 VOLUNTEER WAIVER AND RELEASE OF LIABILITY
+                {t("register.waiver.heading")}
               </p>
               <p className="mb-2">
-                In consideration of my acceptance as a volunteer for activities
-                organized by Chosen 300 (the "Organization"), I, the undersigned
-                volunteer, intending to be legally bound, do hereby waive and
-                forever release any and all rights and claims for damages or
-                injuries that I may have against the Organization, its
-                directors, officers, employees, agents, sponsors, volunteers,
-                and affiliates (collectively, the "Released Parties"), for any
-                and all injuries to me or my personal property. This release
-                includes all injuries and/or damages suffered by me before,
-                during, or after any volunteer activity.
+                {t("register.waiver.p1")}
               </p>
               <p className="mb-2">
-                I acknowledge that volunteering for community outreach and food
-                distribution is a potentially hazardous activity. I should not
-                participate unless I am medically able to do so and properly
-                trained for the tasks I undertake. I assume all risks associated
-                with volunteering, including but not limited to: slips, trips,
-                falls, contact with other volunteers or members of the public,
-                exposure to weather conditions, transportation-related risks,
-                handling of equipment or food items, and other hazards typically
-                found in volunteer service. I recognize and understand that
-                these risks are inherent and assume full responsibility for any
-                claims which I might have based on any of these risks.
+                {t("register.waiver.p2")}
               </p>
               <p className="mb-2">
-                I agree to abide by all instructions and decisions of any
-                Organization official regarding my ability to safely perform
-                volunteer duties. I certify that I am physically fit and
-                sufficiently prepared for participation, and that a licensed
-                medical professional has verified my fitness if required by the
-                Organization.
+                {t("register.waiver.p3")}
               </p>
               <p className="mb-2">
-                In the event of an illness, injury, or medical emergency arising
-                during any volunteer activity, I hereby authorize and consent to
-                the Organization securing from any accredited hospital, clinic,
-                and/or physician any treatment deemed necessary for my immediate
-                care. I agree to be fully responsible for payment of any and all
-                medical services and treatment rendered to me, including but not
-                limited to medical transport, medications, treatment, and
-                hospitalization.
+                {t("register.waiver.p4")}
               </p>
               <p className="mb-2">
-                I agree to follow any health and safety guidelines issued by the
-                Organization or applicable public health authorities, including
-                but not limited to those related to communicable diseases.
+                {t("register.waiver.p5")}
               </p>
               <p className="mb-2">
-                I grant permission to the Released Parties to use my name,
-                voice, and likeness in any photographs, video recordings, or
-                other media for promotional, educational, or other legitimate
-                purposes, without compensation or further notice.
+                {t("register.waiver.p6")}
               </p>
               <p className="mb-2">
-                This volunteer service is provided at no cost. The Organization
-                reserves the right to postpone, modify, or cancel any volunteer
-                activity due to circumstances beyond its control, such as
-                weather events, public health concerns, or safety issues. No
-                compensation or reimbursement will be provided under such
-                circumstances.
+                {t("register.waiver.p7")}
               </p>
               <p className="mb-2">
-                By signing below, I acknowledge (or, if applicable, my parent or
-                legal guardian acknowledges) that I have read and fully
-                understand this Waiver and Release of Liability, and agree to
-                its terms freely and voluntarily without any inducement.
+                {t("register.waiver.p8")}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -1142,8 +1134,7 @@ export default function Register() {
                 onCheckedChange={handleWaiverChange}
               />
               <Label htmlFor="waiver-acceptance" className="font-medium">
-                I have read and agree to the terms of the Waiver and Release of
-                Liability
+                {t("register.waiver.acceptLabel")}
               </Label>
             </div>
             {errors.waiverAccepted && (
@@ -1154,11 +1145,11 @@ export default function Register() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="signature" className="font-medium">
-                  Please sign below
+                  {t("register.waiver.signBelow")}
                 </Label>
                 {signatureSaved && (
                   <span className="text-green-600 text-sm">
-                    ✓ Signature saved
+                    {t("register.waiver.signatureSaved")}
                   </span>
                 )}
               </div>
@@ -1171,7 +1162,7 @@ export default function Register() {
                 <SignatureMaker
                   downloadOnSave={false}
                   onSave={handleWaiverSignatureChange}
-                  saveButtonText="Save Signature"
+                  saveButtonText={t("register.waiver.saveSignature")}
                   saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
                   canvasClass="h-50 w-full"
                   withColorSelect={false}
@@ -1189,13 +1180,13 @@ export default function Register() {
 
             {!signatureSaved && (
               <p className="text-amber-600 text-sm">
-                Please sign and click "Save Signature" before continuing
+                {t("register.waiver.signBeforeContinue")}
               </p>
             )}
 
             <div className="flex gap-3 pt-4">
               <Button variant="outline" onClick={prevStep} className="flex-1">
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 whileHover={{ scale: 1.02 }}
@@ -1210,10 +1201,10 @@ export default function Register() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Registering...
+                      {t("register.registering")}
                     </>
                   ) : (
-                    "Complete Registration"
+                    t("register.completeRegistration")
                   )}
                 </Button>
               </motion.div>
@@ -1244,13 +1235,13 @@ export default function Register() {
               <div>
                 <CardTitle>
                   {isSpecializedRegistration
-                    ? "Community Service/Employee Registration"
-                    : "Volunteer Registration"}
+                    ? t("register.specializedRegistrationTitle")
+                    : t("register.volunteerRegistrationTitle")}
                 </CardTitle>
                 <CardDescription>
                   {isSpecializedRegistration
-                    ? "Register as a community service volunteer or employee with Chosen 300."
-                    : "Register as a new volunteer with Chosen 300"}
+                    ? t("register.specializedRegistrationDescription")
+                    : t("register.volunteerRegistrationDescription")}
                 </CardDescription>
               </div>
             </div>
@@ -1263,13 +1254,13 @@ export default function Register() {
             </div>
             <div className="flex justify-between text-xs text-gray-500 px-1 mt-1">
               <span className={step >= 1 ? "text-red-700 font-medium" : ""}>
-                Personal Info
+                {t("register.progress.personalInfo")}
               </span>
               <span className={step >= 2 ? "text-red-700 font-medium" : ""}>
-                Site Selection
+                {t("register.progress.siteSelection")}
               </span>
               <span className={step >= 3 ? "text-red-700 font-medium" : ""}>
-                Waiver
+                {t("register.progress.waiver")}
               </span>
             </div>
           </CardHeader>
@@ -1278,7 +1269,7 @@ export default function Register() {
           </CardContent>
           <CardFooter className="flex justify-center border-t pt-4">
             <p className="text-sm text-muted-foreground">
-              Thank you for your interest in volunteering with Chosen 300!
+              {t("register.footerThankYou")}
             </p>
           </CardFooter>
         </Card>

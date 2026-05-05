@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserPlus, LogIn, Heart, Music, Gift } from "lucide-react";
 import { motion } from "framer-motion";
+import { useI18n } from "@/i18n/i18n-context";
 
 import { Button } from "@/components/ui/button";
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { t, setLocale } = useI18n();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [needsLanguageSelection, setNeedsLanguageSelection] = useState(false);
 
   useEffect(() => {
     // Simulate loading time
@@ -19,6 +22,11 @@ export default function SplashScreen() {
     }, 300);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const hasLocale = Boolean(localStorage.getItem("appLocale"));
+    setNeedsLanguageSelection(!hasLocale);
   }, []);
 
   const container = {
@@ -36,6 +44,55 @@ export default function SplashScreen() {
     hidden: { y: 20, opacity: 0 },
     show: { y: 0, opacity: 1 },
   };
+
+  if (needsLanguageSelection) {
+    return (
+      <div className="min-h-screen bg-white text-black">
+        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="w-full rounded-2xl border bg-white p-8 shadow-sm"
+          >
+            <Image
+              src="/chosen-01.jpg"
+              alt="Chosen 300 Logo"
+              width={220}
+              height={58}
+              className="mx-auto"
+            />
+            <h1 className="mt-6 text-center text-xl font-semibold">
+              {t("home.chooseLanguageTitle")}
+            </h1>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              {t("home.chooseLanguageDescription")}
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Button
+                onClick={() => {
+                  setLocale("en");
+                  setNeedsLanguageSelection(false);
+                }}
+                className="bg-red-700 hover:bg-red-800"
+              >
+                {t("home.english")}
+              </Button>
+              <Button
+                onClick={() => {
+                  setLocale("es");
+                  setNeedsLanguageSelection(false);
+                }}
+                className="bg-red-700 hover:bg-red-800"
+              >
+                {t("home.spanish")}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-black flex flex-col">
@@ -57,7 +114,7 @@ export default function SplashScreen() {
             height={64}
             className="mx-auto"
           />
-          <p className="mt-2 text-sm text-gray-600">Volunteer Time Tracking System</p>
+          <p className="mt-2 text-sm text-gray-600">{t("home.subtitle")}</p>
         </motion.div>
 
         {/* Grid of tiles */}
@@ -79,7 +136,9 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <LogIn className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Already Registered</span>
+                <span className="text-sm font-medium">
+                  {t("home.alreadyRegistered")}
+                </span>
               </div>
             </motion.button>
 
@@ -94,7 +153,9 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <UserPlus className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Register as New Volunteer</span>
+                <span className="text-sm font-medium">
+                  {t("home.registerVolunteer")}
+                </span>
               </div>
             </motion.button>
 
@@ -109,7 +170,9 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <Heart className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Community Service / Employment</span>
+                <span className="text-sm font-medium">
+                  {t("home.registerSpecialized")}
+                </span>
               </div>
             </motion.button>
 
@@ -124,7 +187,9 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <Music className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Register as Musician</span>
+                <span className="text-sm font-medium">
+                  {t("home.registerMusician")}
+                </span>
               </div>
             </motion.button>
 
@@ -139,7 +204,7 @@ export default function SplashScreen() {
                 <div className="h-14 w-14 rounded-full bg-white/95 flex items-center justify-center mb-3">
                   <Gift className="h-7 w-7 text-[#7f1d1d]" />
                 </div>
-                <span className="text-sm font-medium">Donations</span>
+                <span className="text-sm font-medium">{t("home.donations")}</span>
               </div>
             </motion.button>
           </motion.div>

@@ -30,9 +30,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SignatureMaker } from "@docuseal/signature-maker-react";
+import { useI18n } from "@/i18n/i18n-context";
 
 export default function DonationsPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -72,38 +74,38 @@ export default function DonationsPage() {
 
     if (step === 1) {
       if (!formData.firstName.trim()) {
-        newErrors.firstName = "First name is required";
+        newErrors.firstName = t("donations.errors.firstNameRequired");
       }
       if (!formData.lastName.trim()) {
-        newErrors.lastName = "Last name is required";
+        newErrors.lastName = t("donations.errors.lastNameRequired");
       }
       if (!formData.phone.trim()) {
-        newErrors.phone = "Phone number is required";
+        newErrors.phone = t("donations.errors.phoneRequired");
       }
       // Email is optional, but if provided should be valid
       if (formData.email && !formData.email.includes("@")) {
-        newErrors.email = "Please enter a valid email address";
+        newErrors.email = t("donations.errors.invalidEmail");
       }
     } else if (step === 2) {
       // Check if at least one donation category is selected
       const hasCategorySelected = Object.values(formData.categories).some(Boolean);
 
       if (!hasCategorySelected) {
-        newErrors.categories = "Please select at least one donation category";
+        newErrors.categories = t("donations.errors.categoryRequired");
       }
       if(!formData.quantity) {
-         newErrors.quantity = "Please select at least 1 or more bags/boxes";
+         newErrors.quantity = t("donations.errors.quantityRequired");
       }
     } else if (step === 3) {
       if (!formData.method) {
-        newErrors.method = "Please select a drop-off location";
+        newErrors.method = t("donations.errors.locationRequired");
       }
     } else if (step === 4) {
       if (!formData.waiverAccepted) {
-        newErrors.waiverAccepted = "You must accept the waiver to continue";
+        newErrors.waiverAccepted = t("donations.errors.noticeAcceptRequired");
       }
       if (!formData.waiverSignature) {
-        newErrors.waiverSignature = "Please sign the waiver to continue";
+        newErrors.waiverSignature = t("donations.errors.signatureRequired");
       }
     }
 
@@ -151,18 +153,18 @@ export default function DonationsPage() {
       const result = await saveDonation(donationData);
 
       if (result.success) {
-        toast.success("Donation submitted successfully!", {
-          description: "Thank you for your clothing donation.",
+        toast.success(t("donations.successTitle"), {
+          description: t("donations.successDescription"),
         });
         router.push("/");
       } else {
-        toast.error("Failed to submit donation. Please try again.", {
-          description: "There was an error saving your donation.",
+        toast.error(t("donations.errors.submitFailed"), {
+          description: t("donations.errors.submitFailedDescription"),
         });
       }
     } catch (error) {
       console.error("Donation submission error:", error);
-      toast.error("Failed to submit donation. Please try again.");
+      toast.error(t("donations.errors.submitFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +209,7 @@ export default function DonationsPage() {
     if (signatureData && signatureData.base64) {
       handleChange("waiverSignature", signatureData.base64);
       setSignatureSaved(true);
-      toast.success("Signature saved successfully!");
+      toast.success(t("donations.signatureSavedSuccess"));
     }
   };
 
@@ -223,18 +225,18 @@ export default function DonationsPage() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Contact Information</h3>
+              <h3 className="text-lg font-medium">{t("donations.contactInformation")}</h3>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="firstName">
-                    First Name <span className="text-red-700">*</span>
+                    {t("donations.firstName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="firstName"
                     value={formData.firstName}
                     onChange={(e) => handleChange("firstName", e.target.value)}
-                    placeholder="Jane"
+                    placeholder={t("donations.firstNamePlaceholder")}
                     required
                     className={errors.firstName ? "border-red-500" : ""}
                   />
@@ -245,13 +247,13 @@ export default function DonationsPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="lastName">
-                    Last Name <span className="text-red-700">*</span>
+                    {t("donations.lastName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="lastName"
                     value={formData.lastName}
                     onChange={(e) => handleChange("lastName", e.target.value)}
-                    placeholder="Doe"
+                    placeholder={t("donations.lastNamePlaceholder")}
                     required
                     className={errors.lastName ? "border-red-500" : ""}
                   />
@@ -262,23 +264,23 @@ export default function DonationsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="org">Organization Name (if applicable)</Label>
+                <Label htmlFor="org">{t("donations.organizationName")}</Label>
                 <Input
                   id="org"
                   value={formData.orgName}
                   onChange={(e) => handleChange("orgName", e.target.value)}
-                  placeholder="Company / Group"
+                  placeholder={t("donations.organizationPlaceholder")}
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("donations.email")}</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange("email", e.target.value)}
-                  placeholder="jane@example.com"
+                  placeholder={t("donations.emailPlaceholder")}
                   className={errors.email ? "border-red-500" : ""}
                 />
                 {errors.email && (
@@ -288,13 +290,13 @@ export default function DonationsPage() {
 
               <div className="grid gap-2">
                 <Label htmlFor="phone">
-                  Phone <span className="text-red-700">*</span>
+                  {t("donations.phone")} <span className="text-red-700">*</span>
                 </Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={handlePhoneChange}
-                  placeholder="10 digits only (e.g., 2156678899)"
+                  placeholder={t("donations.phonePlaceholder")}
                   required
                   className={errors.phone ? "border-red-500" : ""}
                 />
@@ -311,7 +313,7 @@ export default function DonationsPage() {
                 onClick={() => router.push("/")}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 className="w-1/2"
@@ -323,7 +325,7 @@ export default function DonationsPage() {
                   onClick={nextStep}
                   className="w-full bg-[#e7000b] hover:bg-[#b8060e]"
                 >
-                  Continue
+                  {t("donations.continue")}
                 </Button>
               </motion.div>
             </div>
@@ -340,52 +342,52 @@ export default function DonationsPage() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Donation Details</h3>
+              <h3 className="text-lg font-medium">{t("donations.detailsTitle")}</h3>
 
               <div className="grid gap-2">
                 <Label>
-                  Donation Categories <span className="text-red-700">*</span>
+                  {t("donations.categories")} <span className="text-red-700">*</span>
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.clothing} onCheckedChange={(v) => handleCategoriesChange("clothing", Boolean(v))} />
-                    <span className="text-sm">Clothing</span>
+                    <span className="text-sm">{t("donations.category.clothing")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.bricABrac} onCheckedChange={(v) => handleCategoriesChange("bricABrac", Boolean(v))} />
-                    <span className="text-sm">Bric-a-Brac</span>
+                    <span className="text-sm">{t("donations.category.bricABrac")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.food} onCheckedChange={(v) => handleCategoriesChange("food", Boolean(v))} />
-                    <span className="text-sm">Food</span>
+                    <span className="text-sm">{t("donations.category.food")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.toys} onCheckedChange={(v) => handleCategoriesChange("toys", Boolean(v))} />
-                    <span className="text-sm">Toys</span>
+                    <span className="text-sm">{t("donations.category.toys")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.furniture} onCheckedChange={(v) => handleCategoriesChange("furniture", Boolean(v))} />
-                    <span className="text-sm">Furniture</span>
+                    <span className="text-sm">{t("donations.category.furniture")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.electronics} onCheckedChange={(v) => handleCategoriesChange("electronics", Boolean(v))} />
-                    <span className="text-sm">Electronics</span>
+                    <span className="text-sm">{t("donations.category.electronics")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.schoolOfficeSupplies} onCheckedChange={(v) => handleCategoriesChange("schoolOfficeSupplies", Boolean(v))} />
-                    <span className="text-sm">School & Office Supplies</span>
+                    <span className="text-sm">{t("donations.category.schoolOfficeSupplies")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.hygienePersonalCare} onCheckedChange={(v) => handleCategoriesChange("hygienePersonalCare", Boolean(v))} />
-                    <span className="text-sm">Hygiene & Personal Care</span>
+                    <span className="text-sm">{t("donations.category.hygienePersonalCare")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.cleaningHouseholdEssentials} onCheckedChange={(v) => handleCategoriesChange("cleaningHouseholdEssentials", Boolean(v))} />
-                    <span className="text-sm">Cleaning & Household Essentials</span>
+                    <span className="text-sm">{t("donations.category.cleaningHouseholdEssentials")}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <Checkbox checked={formData.categories.petSupplies} onCheckedChange={(v) => handleCategoriesChange("petSupplies", Boolean(v))} />
-                    <span className="text-sm">Pet Supplies</span>
+                    <span className="text-sm">{t("donations.category.petSupplies")}</span>
                   </label>
                 </div>
                 {errors.categories && (
@@ -394,14 +396,14 @@ export default function DonationsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="quantity">Quantity or Number of Bags/Boxes</Label>
+                <Label htmlFor="quantity">{t("donations.quantityLabel")}</Label>
                 <Input
                   id="quantity"
                   type="number"
                   min="0"
                   value={formData.quantity}
                   onChange={(e) => handleChange("quantity", e.target.value)}
-                  placeholder="e.g., 3 bags"
+                  placeholder={t("donations.quantityPlaceholder")}
                   required
                   className={errors.quantity ? "border-red-500" : ""}
                 />
@@ -418,7 +420,7 @@ export default function DonationsPage() {
                 onClick={prevStep}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 className="w-1/2"
@@ -430,7 +432,7 @@ export default function DonationsPage() {
                   onClick={nextStep}
                   className="w-full bg-[#e7000b] hover:bg-[#b8060e]"
                 >
-                  Continue
+                  {t("donations.continue")}
                 </Button>
               </motion.div>
             </div>
@@ -447,24 +449,24 @@ export default function DonationsPage() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Drop-off Location</h3>
+              <h3 className="text-lg font-medium">{t("donations.locationTitle")}</h3>
 
               <div className="grid gap-2">
                 <Label htmlFor="dropoff-site">
-                  Drop-off site <span className="text-red-700">*</span>
+                  {t("donations.dropoffSite")} <span className="text-red-700">*</span>
                 </Label>
                 <Select required value={formData.method} onValueChange={(value) => handleChange("method", value)}>
                   <SelectTrigger 
                     id="dropoff-site"
                     className={errors.method ? "border-red-500" : ""}
                   >
-                    <SelectValue placeholder="Select a drop-off location" />
+                    <SelectValue placeholder={t("donations.selectDropoffPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="West Philadelphia">West Philadelphia</SelectItem>
-                    <SelectItem value="Spring Garden">Spring Garden</SelectItem>
-                    <SelectItem value="Ambler">Ambler</SelectItem>
-                    <SelectItem value="Reading">Reading</SelectItem>
+                    <SelectItem value="West Philadelphia">{t("donations.site.westPhiladelphia")}</SelectItem>
+                    <SelectItem value="Spring Garden">{t("donations.site.springGarden")}</SelectItem>
+                    <SelectItem value="Ambler">{t("donations.site.ambler")}</SelectItem>
+                    <SelectItem value="Reading">{t("donations.site.reading")}</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.method && (
@@ -480,7 +482,7 @@ export default function DonationsPage() {
                 onClick={prevStep}
                 className="w-1/2 border-gray-400 text-gray-600 hover:bg-gray-100"
               >
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 className="w-1/2"
@@ -492,7 +494,7 @@ export default function DonationsPage() {
                   onClick={nextStep}
                   className="w-full bg-[#e7000b] hover:bg-[#b8060e]"
                 >
-                  Continue
+                  {t("donations.continue")}
                 </Button>
               </motion.div>
             </div>
@@ -509,10 +511,10 @@ export default function DonationsPage() {
             className="space-y-6"
           >
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Tax Deduction Notice</h3>
+              <h3 className="text-lg font-medium">{t("donations.waiver.title")}</h3>
               <div className="max-h-72 overflow-y-auto border rounded-md p-4 text-sm">
                 <p className="mb-2">
-                  Chosen 300 does not determine the value or deductibility of your donation. Please consult with the IRS or your tax advisor for direction.
+                  {t("donations.waiver.notice")}
                 </p>
               </div>
               
@@ -526,7 +528,7 @@ export default function DonationsPage() {
                   onCheckedChange={handleWaiverChange}
                 />
                 <Label htmlFor="waiver-acceptance" className="font-medium">
-                  I have read and understand the Tax Deduction Notice <span className="text-red-700">*</span>
+                  {t("donations.waiver.acceptLabel")} <span className="text-red-700">*</span>
                 </Label>
               </div>
               {errors.waiverAccepted && (
@@ -538,11 +540,11 @@ export default function DonationsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="signature" className="font-medium">
-                    Please sign below <span className="text-red-700">*</span>
+                    {t("donations.waiver.signBelow")} <span className="text-red-700">*</span>
                   </Label>
                   {signatureSaved && (
                     <span className="text-green-600 text-sm">
-                      ✓ Signature saved
+                      {t("donations.waiver.signatureSaved")}
                     </span>
                   )}
                 </div>
@@ -555,7 +557,7 @@ export default function DonationsPage() {
                   <SignatureMaker
                     downloadOnSave={false}
                     onSave={handleWaiverSignatureChange}
-                    saveButtonText="Save Signature"
+                    saveButtonText={t("donations.waiver.saveSignature")}
                     saveButtonClass="bg-[#e7000b] hover:bg-[#b8060e] text-white px-4 py-2 rounded-md"
                     canvasClass="h-50 w-full"
                     withColorSelect={false}
@@ -573,14 +575,14 @@ export default function DonationsPage() {
 
               {!signatureSaved && (
                 <p className="text-amber-600 text-sm">
-                  Please sign and click "Save Signature" before continuing
+                  {t("donations.waiver.signBeforeContinue")}
                 </p>
               )}
             </div>
 
             <div className="flex gap-3 pt-4">
               <Button variant="outline" onClick={prevStep} className="flex-1">
-                Back
+                {t("common.back")}
               </Button>
               <motion.div
                 whileHover={{ scale: 1.02 }}
@@ -595,10 +597,10 @@ export default function DonationsPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
+                      {t("donations.submitting")}
                     </>
                   ) : (
-                    "Submit Donation"
+                    t("donations.submit")
                   )}
                 </Button>
               </motion.div>
@@ -627,9 +629,9 @@ export default function DonationsPage() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Donations</CardTitle>
+                <CardTitle>{t("donations.title")}</CardTitle>
                 <CardDescription>
-                  Submit your donation to Chosen 300
+                  {t("donations.description")}
                 </CardDescription>
               </div>
             </div>
@@ -642,16 +644,16 @@ export default function DonationsPage() {
             </div>
             <div className="flex justify-between text-xs text-gray-500 px-1 mt-1">
               <span className={step >= 1 ? "text-[#e7000b] font-medium" : ""}>
-                Contact
+                {t("donations.progress.contact")}
               </span>
               <span className={step >= 2 ? "text-[#e7000b] font-medium" : ""}>
-                Details
+                {t("donations.progress.details")}
               </span>
               <span className={step >= 3 ? "text-[#e7000b] font-medium" : ""}>
-                Location
+                {t("donations.progress.location")}
               </span>
               <span className={step >= 4 ? "text-[#e7000b] font-medium" : ""}>
-                Waiver
+                {t("donations.progress.waiver")}
               </span>
             </div>
           </CardHeader>

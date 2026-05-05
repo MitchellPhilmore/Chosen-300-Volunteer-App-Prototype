@@ -30,9 +30,11 @@ import {
   getVolunteerByEmail,
   getMusicianByEmail,
 } from "@/lib/firebase";
+import { useI18n } from "@/i18n/i18n-context";
 
 export default function SignIn() {
   const router = useRouter();
+  const { t } = useI18n();
   const [loginInput, setLoginInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
@@ -57,7 +59,7 @@ export default function SignIn() {
     e.preventDefault();
 
     if (!loginInput) {
-      toast.error("Please enter your phone number or email");
+      toast.error(t("signin.emptyInput"));
       return;
     }
 
@@ -78,7 +80,7 @@ export default function SignIn() {
 
         // Require exactly 10 digits for phone numbers
         if (normalizedPhone.length !== 10) {
-          toast.error("Please enter a valid 10-digit phone number");
+          toast.error(t("signin.invalidPhone"));
           setIsLoading(false);
           return;
         }
@@ -131,7 +133,7 @@ export default function SignIn() {
           const id = musicianMatch.id;
           // Store current musician ID in localStorage for session management
           localStorage.setItem("currentMusicianId", id);
-          toast.success("Signed in successfully as a musician!");
+          toast.success(t("signin.successMusician"));
           router.push(`/musician-dashboard/${id}`);
           return;
         }
@@ -140,7 +142,7 @@ export default function SignIn() {
           const id = volunteerMatch.id;
           // Store current volunteer ID in localStorage for session management
           localStorage.setItem("currentVolunteerId", id);
-          toast.success("Signed in successfully as a volunteer!");
+          toast.success(t("signin.successVolunteer"));
           navigateVolunteerDashboard(
             id,
             volunteerMatch.volunteerType === "communityService"
@@ -154,21 +156,22 @@ export default function SignIn() {
           const id = communityServiceMatch.id;
           // Store current community service ID in localStorage for session management
           localStorage.setItem("currentVolunteerId", id); // Using volunteer ID key for now
-          toast.success("Signed in successfully for community service!");
+          toast.success(t("signin.successCommunityService"));
           navigateVolunteerDashboard(id, "communityService");
           return;
         }
       } else {
         // If no match found
         toast.error(
-          `No account found with this ${
+          t("signin.noAccount").replace(
+            "{{type}}",
             isEmail(loginInput) ? "email" : "phone number"
-          }`
+          )
         );
       }
     } catch (error) {
       console.error("Error during sign in:", error);
-      toast.error("An error occurred during sign in. Please try again.");
+      toast.error(t("signin.errorGeneric"));
     } finally {
       setIsLoading(false);
     }
@@ -179,15 +182,15 @@ export default function SignIn() {
   ) => {
     if (role === "musician" && musician) {
       localStorage.setItem("currentMusicianId", musician.id);
-      toast.success("Signed in successfully as a musician!");
+      toast.success(t("signin.successMusician"));
       router.push(`/musician-dashboard/${musician.id}`);
     } else if (role === "volunteer" && volunteer) {
       localStorage.setItem("currentVolunteerId", volunteer.id);
-      toast.success("Signed in successfully as a volunteer!");
+      toast.success(t("signin.successVolunteer"));
       navigateVolunteerDashboard(volunteer.id, "volunteer");
     } else if (role === "communityService" && communityService) {
       localStorage.setItem("currentVolunteerId", communityService.id);
-      toast.success("Signed in successfully for community service!");
+      toast.success(t("signin.successCommunityService"));
       navigateVolunteerDashboard(communityService.id, "communityService");
     }
   };
@@ -208,8 +211,8 @@ export default function SignIn() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Sign In</CardTitle>
-                <CardDescription>Sign in to your account</CardDescription>
+                <CardTitle>{t("signin.title")}</CardTitle>
+                <CardDescription>{t("signin.description")}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -217,11 +220,11 @@ export default function SignIn() {
             {!showRoleSelection ? (
               <form onSubmit={handleSignIn} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="loginInput">Phone Number or Email</Label>
+                  <Label htmlFor="loginInput">{t("signin.inputLabel")}</Label>
                   <Input
                     id="loginInput"
                     type="text"
-                    placeholder="Enter your phone number or email"
+                    placeholder={t("signin.inputPlaceholder")}
                     value={loginInput}
                     onChange={(e) => setLoginInput(e.target.value)}
                     required
@@ -244,32 +247,34 @@ export default function SignIn() {
                       ) : (
                         <LogIn className="h-6 w-6" />
                       )}
-                      <span>{isLoading ? "Signing In..." : "Sign In"}</span>
+                      <span>
+                        {isLoading ? t("signin.submitting") : t("signin.submit")}
+                      </span>
                     </div>
                   </Button>
                 </motion.div>
 
                 <div className="text-center text-sm text-gray-600">
-                  <p>Don't have an account?</p>
+                  <p>{t("signin.noAccountPrompt")}</p>
                   <div className="flex justify-center space-x-4 mt-2">
                     <Link
                       href="/register"
                       className="text-red-700 hover:underline"
                     >
-                      Register as Volunteer
+                      {t("signin.registerVolunteer")}
                     </Link>
                     <Link
                       href="/register?type=communityService"
                       className="text-red-700 hover:underline"
                     >
-                      Register for Community Service
+                      {t("signin.registerCommunityService")}
                     </Link>
                     <span className="text-gray-400">|</span>
                     <Link
                       href="/musician-register"
                       className="text-red-700 hover:underline"
                     >
-                      Register as Musician
+                      {t("signin.registerMusician")}
                     </Link>
                   </div>
                 </div>
@@ -277,8 +282,7 @@ export default function SignIn() {
             ) : (
               <div className="space-y-8">
                 <p className="text-center text-lg">
-                  You're registered as multiple roles. Please select how you
-                  would like to sign in:
+                  {t("signin.rolePrompt")}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -293,7 +297,7 @@ export default function SignIn() {
                         className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-2"
                       >
                         <Music className="h-12 w-12 mb-3" />
-                        <span className="text-center">Musician</span>
+                        <span className="text-center">{t("signin.roleMusician")}</span>
                       </Button>
                     </motion.div>
                   )}
@@ -309,7 +313,7 @@ export default function SignIn() {
                         className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-2"
                       >
                         <UserPlus className="h-12 w-12 mb-3" />
-                        <span className="text-center">Volunteer</span>
+                        <span className="text-center">{t("signin.roleVolunteer")}</span>
                       </Button>
                     </motion.div>
                   )}
@@ -325,7 +329,9 @@ export default function SignIn() {
                         className="w-full bg-red-700 hover:bg-red-800 h-36 flex flex-col items-center justify-center text-lg px-4 whitespace-normal"
                       >
                         <Heart className="h-12 w-12 mb-3" />
-                        <span className="text-center">Community Service</span>
+                        <span className="text-center">
+                          {t("signin.roleCommunityService")}
+                        </span>
                       </Button>
                     </motion.div>
                   )}
@@ -337,7 +343,7 @@ export default function SignIn() {
                     onClick={() => setShowRoleSelection(false)}
                     className="text-red-700 text-lg"
                   >
-                    Back to sign in
+                    {t("signin.backToSignin")}
                   </Button>
                 </div>
               </div>

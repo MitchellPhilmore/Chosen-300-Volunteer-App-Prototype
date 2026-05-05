@@ -55,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useI18n } from "@/i18n/i18n-context";
 
 interface Volunteer {
   id: string;
@@ -105,6 +106,7 @@ export default function VolunteerDashboard() {
   const id = params.id as string;
 
   const router = useRouter();
+  const { t } = useI18n();
   const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminCode, setAdminCode] = useState("");
@@ -148,7 +150,7 @@ export default function VolunteerDashboard() {
           if (localVolunteer) {
             setVolunteer(localVolunteer);
           } else {
-            setError("Volunteer not found");
+            setError(t("volunteerDashboard.errors.volunteerNotFound"));
           }
         }
 
@@ -179,7 +181,7 @@ export default function VolunteerDashboard() {
         }
       } catch (err) {
         console.error("Error loading volunteer data:", err);
-        setError("Failed to load volunteer data");
+        setError(t("volunteerDashboard.errors.loadFailed"));
       } finally {
         setLoading(false);
       }
@@ -211,12 +213,12 @@ export default function VolunteerDashboard() {
 
     // Admin code required only for specialized sessions (CS/Employment)
     if (isSessionSpecialized && !adminCode) {
-      toast.error("Please enter the admin code");
+      toast.error(t("volunteerDashboard.toasts.enterAdminCode"));
       return;
     }
 
     if (!selectedLocation) {
-      toast.error("Please select a location");
+      toast.error(t("volunteerDashboard.toasts.selectLocation"));
       return;
     }
 
@@ -227,11 +229,11 @@ export default function VolunteerDashboard() {
       volunteer.volunteerType !== "employment"
     ) {
       if (!csReason) {
-        toast.error("Please enter the reason for your community service");
+        toast.error(t("volunteerDashboard.toasts.enterCsReason"));
         return;
       }
       if (!csInstitution) {
-        toast.error("Please enter the institution requiring your service");
+        toast.error(t("volunteerDashboard.toasts.enterCsInstitution"));
         return;
       }
     }
@@ -256,9 +258,9 @@ export default function VolunteerDashboard() {
             submittedCode !== storedCode &&
             (DEFAULT_ADMIN_CODE ? submittedCode !== DEFAULT_ADMIN_CODE : true)
           ) {
-            toast.error("Invalid check-in code", {
+            toast.error(t("volunteerDashboard.toasts.invalidCheckinCodeTitle"), {
               description:
-                "Please check with your coordinator for the correct code.",
+                t("volunteerDashboard.toasts.invalidCheckinCodeDescription"),
             });
             setAdminCode("");
             setIsCheckingIn(false);
@@ -269,10 +271,10 @@ export default function VolunteerDashboard() {
         else if (!DEFAULT_ADMIN_CODE || submittedCode !== DEFAULT_ADMIN_CODE) {
           // If default code isn't set, show appropriate message
           const errorMessage = !DEFAULT_ADMIN_CODE
-            ? "No backup code available. Please try again when the system is back online."
-            : "Daily code unavailable. Please use the backup code.";
+            ? t("volunteerDashboard.toasts.noBackupCode")
+            : t("volunteerDashboard.toasts.dailyCodeUnavailable");
 
-          toast.error("Invalid check-in code", {
+          toast.error(t("volunteerDashboard.toasts.invalidCheckinCodeTitle"), {
             description: errorMessage,
           });
           setAdminCode("");
@@ -301,10 +303,10 @@ export default function VolunteerDashboard() {
             throw updateResult.error || new Error("Failed to update profile");
           }
           setVolunteer(updatedVolunteerData);
-          toast.info("Volunteer profile updated to Community Service.");
+          toast.info(t("volunteerDashboard.toasts.profileUpdatedToCs"));
         } catch (error) {
           console.error("Error updating volunteer profile:", error);
-          toast.error("Could not update volunteer profile. Please try again.");
+          toast.error(t("volunteerDashboard.toasts.profileUpdateFailed"));
           setIsCheckingIn(false);
           return;
         }
@@ -349,8 +351,8 @@ export default function VolunteerDashboard() {
         );
 
         if (result.success) {
-          toast.success("Check-in successful!", {
-            description: `You've been automatically checked in for 4 hours.`,
+          toast.success(t("volunteerDashboard.toasts.checkinSuccessTitle"), {
+            description: t("volunteerDashboard.toasts.autoCheckinDescription"),
           });
 
           // Reload completed sessions
@@ -358,7 +360,7 @@ export default function VolunteerDashboard() {
 
           // Redirect to home page
           setTimeout(() => {
-            toast.info("Redirecting to home page...");
+            toast.info(t("volunteerDashboard.toasts.redirectingHome"));
             router.push("/");
           }, 4000);
         } else {
@@ -376,13 +378,13 @@ export default function VolunteerDashboard() {
           };
           setActiveSession(newActiveSession);
 
-          toast.success("Check-in successful!", {
+          toast.success(t("volunteerDashboard.toasts.checkinSuccessTitle"), {
             description: `You've checked in at ${new Date().toLocaleTimeString()}`,
           });
 
           // Redirect to home page for CS volunteers as well
           setTimeout(() => {
-            toast.info("Redirecting to home page...");
+            toast.info(t("volunteerDashboard.toasts.redirectingHome"));
             router.push("/");
           }, 2500); // Redirect after 2.5 seconds
         } else {
@@ -391,10 +393,12 @@ export default function VolunteerDashboard() {
       }
     } catch (error) {
       console.error("Error during check-in:", error);
-      toast.error("Check-in failed", {
+      toast.error(t("volunteerDashboard.toasts.checkinFailedTitle"), {
         description:
-          (error instanceof Error ? error.message : "Please try again") +
-          " or contact support.",
+          (error instanceof Error
+            ? error.message
+            : t("volunteerDashboard.toasts.tryAgain")) +
+          ` ${t("volunteerDashboard.toasts.contactSupport")}`,
       });
     } finally {
       setIsCheckingIn(false);
@@ -457,13 +461,13 @@ export default function VolunteerDashboard() {
         setShowRatingDialog(false);
         loadCompletedSessions();
 
-        toast.success("Check-out successful!", {
+        toast.success(t("volunteerDashboard.toasts.checkoutSuccessTitle"), {
           description: `You worked ${hoursWorked} hours. Thank you for your time!`,
         });
 
         // Redirect to home page after check-out
         setTimeout(() => {
-          toast.info("Redirecting to home page...");
+          toast.info(t("volunteerDashboard.toasts.redirectingHome"));
           router.push("/");
         }, 2500); // Redirect after 2.5 seconds
       } else {
@@ -471,8 +475,10 @@ export default function VolunteerDashboard() {
       }
     } catch (error) {
       console.error("Error during check-out:", error);
-      toast.error("Check-out failed", {
-        description: "Please try again or contact support.",
+      toast.error(t("volunteerDashboard.toasts.checkoutFailedTitle"), {
+        description: `${t("volunteerDashboard.toasts.tryAgain")} ${t(
+          "volunteerDashboard.toasts.contactSupport"
+        )}`,
       });
     } finally {
       setShowRatingDialog(false);
@@ -534,7 +540,7 @@ export default function VolunteerDashboard() {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-red-700" />
-        <span className="ml-2">Loading volunteer data...</span>
+        <span className="ml-2">{t("volunteerDashboard.loading")}</span>
       </div>
     );
   }
@@ -544,13 +550,14 @@ export default function VolunteerDashboard() {
       <div className="container mx-auto py-8 px-4">
         <Card className="max-w-3xl mx-auto border-none shadow-lg">
           <CardHeader>
-            <CardTitle className="text-red-700">Error</CardTitle>
-            <CardDescription>{error || "Volunteer not found"}</CardDescription>
+            <CardTitle className="text-red-700">{t("common.error")}</CardTitle>
+            <CardDescription>
+              {error || t("volunteerDashboard.errors.volunteerNotFound")}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p>
-              Please check the URL or return to the registration page to sign
-              up.
+              {t("volunteerDashboard.errors.checkUrl")}
             </p>
           </CardContent>
         </Card>
@@ -574,20 +581,22 @@ export default function VolunteerDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold">
-              Welcome, {volunteer.firstName}!
+              {t("volunteerDashboard.welcome")}, {volunteer.firstName}!
             </h1>
             <p className="text-gray-600">
               {volunteer.volunteerType === "employment"
-                ? "Employee Dashboard"
-                : "Volunteer Dashboard"}
+                ? t("volunteerDashboard.employeeDashboard")
+                : t("volunteerDashboard.volunteerDashboard")}
               {volunteer.volunteerType === "communityService" && (
                 <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  <Briefcase className="mr-1 h-3 w-3" /> Community Service
+                  <Briefcase className="mr-1 h-3 w-3" />{" "}
+                  {t("volunteerDashboard.communityService")}
                 </span>
               )}
               {volunteer.volunteerType === "employment" && (
                 <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <Briefcase className="mr-1 h-3 w-3" /> Employee
+                  <Briefcase className="mr-1 h-3 w-3" />{" "}
+                  {t("volunteerDashboard.employee")}
                 </span>
               )}
             </p>
@@ -600,7 +609,7 @@ export default function VolunteerDashboard() {
                 className="border-red-700 text-red-700 hover:bg-red-50"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
+                {t("volunteerDashboard.signOut")}
               </Button>
             </Link>
           </div>
@@ -609,13 +618,15 @@ export default function VolunteerDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("volunteerDashboard.totalHours")}
+              </CardTitle>
               <Clock className="h-4 w-4 text-red-700" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalHours}</div>
               <p className="text-xs text-muted-foreground">
-                Total hours of service
+                {t("volunteerDashboard.totalHoursOfService")}
               </p>
             </CardContent>
           </Card>
@@ -623,20 +634,22 @@ export default function VolunteerDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Volunteer Since
+                {t("volunteerDashboard.volunteerSince")}
               </CardTitle>
               <Calendar className="h-4 w-4 text-red-700" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{registrationDate}</div>
-              <p className="text-xs text-muted-foreground">Registration date</p>
+              <p className="text-xs text-muted-foreground">
+                {t("volunteerDashboard.registrationDate")}
+              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Total Sessions
+                {t("volunteerDashboard.totalSessions")}
               </CardTitle>
               <Award className="h-4 w-4 text-red-700" />
             </CardHeader>
@@ -645,7 +658,7 @@ export default function VolunteerDashboard() {
                 {volunteerHistory.length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Total volunteer sessions
+                {t("volunteerDashboard.totalVolunteerSessions")}
               </p>
             </CardContent>
           </Card>
@@ -653,13 +666,15 @@ export default function VolunteerDashboard() {
           {showCsMetrics && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">CS Hours</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {t("volunteerDashboard.csHours")}
+                </CardTitle>
                 <Briefcase className="h-4 w-4 text-blue-700" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{csHours}</div>
                 <p className="text-xs text-muted-foreground">
-                  Community service hours
+                  {t("volunteerDashboard.communityServiceHours")}
                 </p>
               </CardContent>
             </Card>
@@ -669,14 +684,14 @@ export default function VolunteerDashboard() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  CS Sessions
+                  {t("volunteerDashboard.csSessions")}
                 </CardTitle>
                 <Briefcase className="h-4 w-4 text-blue-700" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{csSessionsCount}</div>
                 <p className="text-xs text-muted-foreground">
-                  Community service sessions
+                  {t("volunteerDashboard.communityServiceSessions")}
                 </p>
               </CardContent>
             </Card>
@@ -687,11 +702,11 @@ export default function VolunteerDashboard() {
           <div className="md:col-span-2">
             <Card className="h-full">
               <CardHeader>
-                <CardTitle>Current Status</CardTitle>
+                <CardTitle>{t("volunteerDashboard.currentStatus")}</CardTitle>
                 <CardDescription>
                   {volunteer.volunteerType === "employment"
-                    ? "Your employment application activity"
-                    : "Your volunteer activity"}
+                    ? t("volunteerDashboard.employmentActivity")
+                    : t("volunteerDashboard.volunteerActivity")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -699,28 +714,34 @@ export default function VolunteerDashboard() {
                   <div className="space-y-4">
                     <div className="p-4 bg-green-50 border border-green-200 rounded-md">
                       <h3 className="font-medium text-green-800 mb-2">
-                        Currently Checked In
+                        {t("volunteerDashboard.currentlyCheckedIn")}
                       </h3>
                       <p className="text-sm text-green-700">
-                        <span className="font-medium">Location:</span>{" "}
+                        <span className="font-medium">
+                          {t("volunteerDashboard.location")}:
+                        </span>{" "}
                         {activeSession.location
                           ? activeSession.location
                               .replace(/-/g, " ")
                               .replace(/\b\w/g, (l: string) => l.toUpperCase())
-                          : "N/A"}
+                          : t("common.notAvailable")}
                       </p>
                       <p className="text-sm text-green-700">
-                        <span className="font-medium">Check-in time:</span>{" "}
+                        <span className="font-medium">
+                          {t("volunteerDashboard.checkInTime")}:
+                        </span>{" "}
                         {formatTime(activeSession.checkInTime)}
                       </p>
                       <p className="text-sm text-green-700">
-                        <span className="font-medium">Duration:</span>{" "}
+                        <span className="font-medium">
+                          {t("volunteerDashboard.duration")}:
+                        </span>{" "}
                         {Math.round(
                           (new Date().getTime() -
                             new Date(activeSession.checkInTime).getTime()) /
                             60000
                         )}{" "}
-                        minutes
+                        {t("volunteerDashboard.minutes")}
                       </p>
                     </div>
 
@@ -735,7 +756,7 @@ export default function VolunteerDashboard() {
                           onClick={handleCheckOut}
                           className="w-full bg-red-700 hover:bg-red-800"
                         >
-                          Check Out Now
+                          {t("volunteerDashboard.checkOutNow")}
                         </Button>
                       </motion.div>
                     )}
@@ -743,8 +764,7 @@ export default function VolunteerDashboard() {
                 ) : (
                   <div className="space-y-4">
                     <p className="text-gray-600">
-                      You are not currently checked in to any volunteer
-                      activity.
+                      {t("volunteerDashboard.notCheckedIn")}
                     </p>
 
                     <Dialog>
@@ -754,7 +774,7 @@ export default function VolunteerDashboard() {
                           whileTap={{ scale: 0.98 }}
                         >
                           <Button className="w-full bg-red-700 hover:bg-red-800">
-                            Check In Now
+                            {t("volunteerDashboard.checkInNow")}
                           </Button>
                         </motion.div>
                       </DialogTrigger>
@@ -929,12 +949,16 @@ export default function VolunteerDashboard() {
           <div>
             <Card className="h-full">
               <CardHeader>
-                <CardTitle>Your Information</CardTitle>
-                <CardDescription>Personal details</CardDescription>
+                <CardTitle>{t("volunteerDashboard.yourInformation")}</CardTitle>
+                <CardDescription>
+                  {t("volunteerDashboard.personalDetails")}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-sm">
-                  <span className="font-medium">Name:</span>{" "}
+                  <span className="font-medium">
+                    {t("volunteerDashboard.name")}:
+                  </span>{" "}
                   {volunteer.firstName} {volunteer.lastName}
                 </p>
                 {(volunteer.volunteerType === "communityService" ||
@@ -943,8 +967,8 @@ export default function VolunteerDashboard() {
                     <p className="text-sm">
                       <span className="font-medium">
                         {volunteer.volunteerType === "employment"
-                          ? "Employee Type:"
-                          : "Service Reason:"}
+                          ? `${t("volunteerDashboard.employeeType")}:`
+                          : `${t("volunteerDashboard.serviceReason")}:`}
                       </span>{" "}
                       {volunteer.serviceReason === "other"
                         ? volunteer.serviceReasonOther
@@ -955,8 +979,8 @@ export default function VolunteerDashboard() {
                     <p className="text-sm">
                       <span className="font-medium">
                         {volunteer.volunteerType === "employment"
-                          ? "Referring Organization:"
-                          : "Assigning Institution:"}
+                          ? `${t("volunteerDashboard.referringOrganization")}:`
+                          : `${t("volunteerDashboard.assigningInstitution")}:`}
                       </span>{" "}
                       {volunteer.serviceInstitution}
                     </p>
@@ -964,12 +988,17 @@ export default function VolunteerDashboard() {
                 )}
                 {volunteer.email && (
                   <p className="text-sm">
-                    <span className="font-medium">Email:</span>{" "}
+                    <span className="font-medium">
+                      {t("volunteerDashboard.email")}:
+                    </span>{" "}
                     {volunteer.email}
                   </p>
                 )}
                 <p className="text-sm">
-                  <span className="font-medium">Phone:</span> {volunteer.phone}
+                  <span className="font-medium">
+                    {t("volunteerDashboard.phone")}:
+                  </span>{" "}
+                  {volunteer.phone}
                 </p>
               </CardContent>
             </Card>
@@ -981,13 +1010,13 @@ export default function VolunteerDashboard() {
             <CardTitle className="flex items-center">
               <History className="mr-2 h-5 w-5" />
               {volunteer.volunteerType === "employment"
-                ? "Employee History"
-                : "Volunteer History"}
+                ? t("volunteerDashboard.employeeHistory")
+                : t("volunteerDashboard.volunteerHistory")}
             </CardTitle>
             <CardDescription>
               {volunteer.volunteerType === "employment"
-                ? "Your past employee sessions"
-                : "Your past volunteer sessions"}
+                ? t("volunteerDashboard.pastEmployeeSessions")
+                : t("volunteerDashboard.pastVolunteerSessions")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -996,20 +1025,24 @@ export default function VolunteerDashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">Date</th>
                       <th className="text-left py-3 px-4 font-medium">
-                        Location
+                        {t("volunteerDashboard.table.date")}
                       </th>
                       <th className="text-left py-3 px-4 font-medium">
-                        Time In
+                        {t("volunteerDashboard.table.location")}
                       </th>
                       <th className="text-left py-3 px-4 font-medium">
-                        Time Out
+                        {t("volunteerDashboard.table.timeIn")}
                       </th>
-                      <th className="text-left py-3 px-4 font-medium">Hours</th>
+                      <th className="text-left py-3 px-4 font-medium">
+                        {t("volunteerDashboard.table.timeOut")}
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium">
+                        {t("volunteerDashboard.table.hours")}
+                      </th>
                       {showCsMetrics && (
                         <th className="text-center py-3 px-4 font-medium">
-                          CS
+                          {t("volunteerDashboard.table.cs")}
                         </th>
                       )}
                     </tr>
@@ -1027,7 +1060,7 @@ export default function VolunteerDashboard() {
                                 .replace(/\b\w/g, (l: string) =>
                                   l.toUpperCase()
                                 )
-                            : "N/A"}
+                            : t("common.notAvailable")}
                         </td>
                         <td className="py-3 px-4">
                           {formatTime(session.checkInTime)}
@@ -1035,7 +1068,7 @@ export default function VolunteerDashboard() {
                         <td className="py-3 px-4">
                           {session.checkOutTime
                             ? formatTime(session.checkOutTime)
-                            : "N/A"}
+                            : t("common.notAvailable")}
                         </td>
                         <td className="py-3 px-4 text-right">
                           {session.hoursWorked}
@@ -1058,13 +1091,13 @@ export default function VolunteerDashboard() {
               <div className="text-center py-8 text-gray-500">
                 <p>
                   {volunteer.volunteerType === "employment"
-                    ? "No shift history yet"
-                    : "No volunteer history yet"}
+                    ? t("volunteerDashboard.noShiftHistory")
+                    : t("volunteerDashboard.noVolunteerHistory")}
                 </p>
                 <p className="text-sm">
                   {volunteer.volunteerType === "employment"
-                    ? "Your completed shifts will appear here"
-                    : "Your completed volunteer sessions will appear here"}
+                    ? t("volunteerDashboard.completedShiftsAppear")
+                    : t("volunteerDashboard.completedVolunteerSessionsAppear")}
                 </p>
               </div>
             )}

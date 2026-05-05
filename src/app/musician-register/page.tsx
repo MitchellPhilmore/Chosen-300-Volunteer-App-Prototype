@@ -28,11 +28,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SignatureMaker } from "@docuseal/signature-maker-react";
+import { useI18n } from "@/i18n/i18n-context";
 
 const INSTRUMENTS = [
-  { id: "worship leader", label: "Worship Leader" },
-  { id: "drums", label: "Drums" },
-  { id: "keyboard", label: "Keyboard" },
+  { id: "worship leader", key: "worshipLeader" },
+  { id: "drums", key: "drums" },
+  { id: "keyboard", key: "keyboard" },
 ];
 
 // Define validation schemas
@@ -67,6 +68,7 @@ const textFieldSchema = z
 
 export default function MusicianRegistration() {
   const router = useRouter();
+  const { t } = useI18n();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -81,6 +83,22 @@ export default function MusicianRegistration() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const translateValidationMessage = (message: string) => {
+    const map: Record<string, string> = {
+      "Name is required": t("musicianRegister.errors.nameRequired"),
+      "Name can only contain letters, spaces, hyphens, and apostrophes":
+        t("musicianRegister.errors.nameInvalidChars"),
+      "Please enter a valid email address":
+        t("musicianRegister.errors.invalidEmail"),
+      "Phone number must be exactly 10 digits (e.g., 2156678899)":
+        t("musicianRegister.errors.invalidPhone"),
+      "Field can only contain letters, numbers, spaces, commas, periods, hyphens, and apostrophes":
+        t("musicianRegister.errors.invalidTextField"),
+    };
+
+    return map[message] || message;
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -120,7 +138,7 @@ export default function MusicianRegistration() {
     if (!regex.test(e.key) && !isControlKey) {
       e.preventDefault();
       toast.error(
-        "Names can only contain letters, spaces, hyphens, and apostrophes",
+        t("musicianRegister.errors.nameInvalidChars"),
         {
           duration: 2000,
           id: "name-validation", // Prevent multiple toasts
@@ -176,7 +194,7 @@ export default function MusicianRegistration() {
       });
     }
 
-    toast.success("Signature saved successfully!");
+    toast.success(t("musicianRegister.signatureSavedSuccess"));
   };
 
   const validateForm = () => {
@@ -187,7 +205,7 @@ export default function MusicianRegistration() {
       nameSchema.parse(formData.firstName);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        newErrors.firstName = error.errors[0].message;
+        newErrors.firstName = translateValidationMessage(error.errors[0].message);
       }
     }
 
@@ -196,7 +214,7 @@ export default function MusicianRegistration() {
       nameSchema.parse(formData.lastName);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        newErrors.lastName = error.errors[0].message;
+        newErrors.lastName = translateValidationMessage(error.errors[0].message);
       }
     }
 
@@ -206,7 +224,7 @@ export default function MusicianRegistration() {
         emailSchema.parse(formData.email);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          newErrors.email = error.errors[0].message;
+          newErrors.email = translateValidationMessage(error.errors[0].message);
         }
       }
     }
@@ -217,14 +235,14 @@ export default function MusicianRegistration() {
         phoneSchema.parse(formData.phone);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          newErrors.phone = error.errors[0].message;
+          newErrors.phone = translateValidationMessage(error.errors[0].message);
         }
       }
     }
 
     // Require at least email or phone
     if (!formData.email && !formData.phone) {
-      newErrors.email = "Please provide either an email or phone number";
+      newErrors.email = t("musicianRegister.errors.emailOrPhoneRequired");
     }
 
     // Validate availability
@@ -233,24 +251,24 @@ export default function MusicianRegistration() {
         textFieldSchema.parse(formData.availability);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          newErrors.availability = error.errors[0].message;
+          newErrors.availability = translateValidationMessage(error.errors[0].message);
         }
       }
     }
 
     // Validate instrument selection
     if (formData.instruments.length === 0) {
-      newErrors.instruments = "Please select at least one instrument you play";
+      newErrors.instruments = t("musicianRegister.errors.instrumentRequired");
     }
 
     // Validate waiver acceptance
     if (!formData.waiverAccepted) {
-      newErrors.waiverAccepted = "You must accept the waiver to continue";
+      newErrors.waiverAccepted = t("musicianRegister.errors.waiverAcceptRequired");
     }
 
     // Validate waiver signature
     if (!formData.waiverSignature) {
-      newErrors.waiverSignature = "Please sign the waiver to continue";
+      newErrors.waiverSignature = t("musicianRegister.errors.waiverSignatureRequired");
     }
 
     setErrors(newErrors);
@@ -282,7 +300,7 @@ export default function MusicianRegistration() {
           existingMusician.data &&
           existingMusician.data.length > 0
         ) {
-          toast.error("A musician with this phone number already exists");
+          toast.error(t("musicianRegister.errors.duplicatePhone"));
           return;
         }
       }
@@ -312,18 +330,18 @@ export default function MusicianRegistration() {
       const result = await saveMusician(newMusician);
 
       if (result.success) {
-        toast.success("Registration successful!", {
-          description: "Thank you for registering as a musician.",
+        toast.success(t("musicianRegister.successTitle"), {
+          description: t("musicianRegister.successDescription"),
         });
         router.push(`/musician-dashboard/${musicianId}`);
       } else {
-        toast.error("Failed to register. Please try again.", {
-          description: "There was an error saving your information.",
+        toast.error(t("musicianRegister.errors.submitFailed"), {
+          description: t("musicianRegister.errors.submitFailedDescription"),
         });
       }
     } catch (error) {
       console.error("Registration error:", error);
-      toast.error("Failed to register. Please try again.");
+      toast.error(t("musicianRegister.errors.submitFailed"));
     } finally {
       setFormData((prev) => ({ ...prev, isSubmitting: false }));
     }
@@ -345,9 +363,9 @@ export default function MusicianRegistration() {
                 </Button>
               </Link>
               <div>
-                <CardTitle>Musician Registration</CardTitle>
+                <CardTitle>{t("musicianRegister.title")}</CardTitle>
                 <CardDescription>
-                  Register as a musician with Chosen 300
+                  {t("musicianRegister.description")}
                 </CardDescription>
               </div>
             </div>
@@ -357,7 +375,7 @@ export default function MusicianRegistration() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">
-                    First Name <span className="text-red-700">*</span>
+                    {t("musicianRegister.firstName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="firstName"
@@ -377,7 +395,7 @@ export default function MusicianRegistration() {
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName">
-                    Last Name <span className="text-red-700">*</span>
+                    {t("musicianRegister.lastName")} <span className="text-red-700">*</span>
                   </Label>
                   <Input
                     id="lastName"
@@ -398,7 +416,7 @@ export default function MusicianRegistration() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address <span className="text-red-700">*</span></Label>
+                  <Label htmlFor="email">{t("musicianRegister.emailAddress")} <span className="text-red-700">*</span></Label>
                   <Input
                     id="email"
                     name="email"
@@ -413,14 +431,14 @@ export default function MusicianRegistration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number <span className="text-red-700">*</span></Label>
+                  <Label htmlFor="phone">{t("musicianRegister.phoneNumber")} <span className="text-red-700">*</span></Label>
                   <Input
                     id="phone"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
                     required
-                    placeholder="10 digits only (e.g., 2156678899)"
+                    placeholder={t("musicianRegister.phonePlaceholder")}
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && (
@@ -431,7 +449,7 @@ export default function MusicianRegistration() {
 
               <div className="space-y-2">
                 <Label>
-                  Primary Instrument <span className="text-red-700">*</span>
+                  {t("musicianRegister.primaryInstrument")} <span className="text-red-700">*</span>
                 </Label>
                 <Select
                   value={formData.instruments[0] || ""}
@@ -440,12 +458,12 @@ export default function MusicianRegistration() {
                   <SelectTrigger
                     className={errors.instruments ? "border-red-500" : ""}
                   >
-                    <SelectValue placeholder="Select your primary instrument" />
+                    <SelectValue placeholder={t("musicianRegister.selectInstrument")} />
                   </SelectTrigger>
                   <SelectContent>
                     {INSTRUMENTS.map((instrument) => (
                       <SelectItem key={instrument.id} value={instrument.id}>
-                        {instrument.label}
+                        {t(`musicianRegister.instruments.${instrument.key}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -460,83 +478,34 @@ export default function MusicianRegistration() {
            
 
               <div className="space-y-2">
-                <Label>Volunteer Waiver and Release of Liability</Label>
+                <Label>{t("register.waiver.title")}</Label>
                 <div className="max-h-72 overflow-y-auto border rounded-md p-4 text-sm">
                   <p className="font-bold mb-2">
-                    CHOSEN 300 VOLUNTEER WAIVER AND RELEASE OF LIABILITY
+                    {t("register.waiver.heading")}
                   </p>
                   <p className="mb-2">
-                    In consideration of my acceptance as a volunteer for
-                    activities organized by Chosen 300 (the "Organization"), I,
-                    the undersigned volunteer, intending to be legally bound, do
-                    hereby waive and forever release any and all rights and
-                    claims for damages or injuries that I may have against the
-                    Organization, its directors, officers, employees, agents,
-                    sponsors, volunteers, and affiliates (collectively, the
-                    "Released Parties"), for any and all injuries to me or my
-                    personal property. This release includes all injuries and/or
-                    damages suffered by me before, during, or after any
-                    volunteer activity.
+                    {t("register.waiver.p1")}
                   </p>
                   <p className="mb-2">
-                    I acknowledge that volunteering for community outreach and
-                    food distribution is a potentially hazardous activity. I
-                    should not participate unless I am medically able to do so
-                    and properly trained for the tasks I undertake. I assume all
-                    risks associated with volunteering, including but not
-                    limited to: slips, trips, falls, contact with other
-                    volunteers or members of the public, exposure to weather
-                    conditions, transportation-related risks, handling of
-                    equipment or food items, and other hazards typically found
-                    in volunteer service. I recognize and understand that these
-                    risks are inherent and assume full responsibility for any
-                    claims which I might have based on any of these risks.
+                    {t("register.waiver.p2")}
                   </p>
                   <p className="mb-2">
-                    I agree to abide by all instructions and decisions of any
-                    Organization official regarding my ability to safely perform
-                    volunteer duties. I certify that I am physically fit and
-                    sufficiently prepared for participation, and that a licensed
-                    medical professional has verified my fitness if required by
-                    the Organization.
+                    {t("register.waiver.p3")}
                   </p>
                   <p className="mb-2">
-                    In the event of an illness, injury, or medical emergency
-                    arising during any volunteer activity, I hereby authorize
-                    and consent to the Organization securing from any accredited
-                    hospital, clinic, and/or physician any treatment deemed
-                    necessary for my immediate care. I agree to be fully
-                    responsible for payment of any and all medical services and
-                    treatment rendered to me, including but not limited to
-                    medical transport, medications, treatment, and
-                    hospitalization.
+                    {t("register.waiver.p4")}
                   </p>
                   <p className="mb-2">
-                    I agree to follow any health and safety guidelines issued by
-                    the Organization or applicable public health authorities,
-                    including but not limited to those related to communicable
-                    diseases.
+                    {t("register.waiver.p5")}
                   </p>
                   <p className="mb-2">
-                    I grant permission to the Released Parties to use my name,
-                    voice, and likeness in any photographs, video recordings, or
-                    other media for promotional, educational, or other
-                    legitimate purposes, without compensation or further notice.
+                    {t("register.waiver.p6")}
                   </p>
                   <p className="mb-2">
-                    This volunteer service is provided at no cost. The
-                    Organization reserves the right to postpone, modify, or
-                    cancel any volunteer activity due to circumstances beyond
-                    its control, such as weather events, public health concerns,
-                    or safety issues. No compensation or reimbursement will be
-                    provided under such circumstances.
+                    {t("register.waiver.p7")}
                   </p>
                   <p className="mb-2">
-                    By signing below, I acknowledge (or, if applicable, my
-                    parent or legal guardian acknowledges) that I have read and
-                    fully understand this Waiver and Release of Liability, and
-                    agree to its terms freely and voluntarily without any
-                    inducement.
+                    {t("register.waiver.p8")}
                   </p>
                 </div>
                 <div className="flex items-center space-x-2 mt-3">
@@ -549,8 +518,8 @@ export default function MusicianRegistration() {
                     onCheckedChange={handleWaiverChange}
                   />
                   <Label htmlFor="waiver-acceptance" className="font-medium">
-                    I have read and agree to the terms of the Waiver and Release
-                    of Liability <span className="text-red-700">*</span>
+                    {t("register.waiver.acceptLabel")}{" "}
+                    <span className="text-red-700">*</span>
                   </Label>
                 </div>
                 {errors.waiverAccepted && (
@@ -568,7 +537,7 @@ export default function MusicianRegistration() {
                   <SignatureMaker
                     downloadOnSave={false}
                     onSave={handleWaiverSignatureChange}
-                    saveButtonText="Save Signature"
+                    saveButtonText={t("register.waiver.saveSignature")}
                     saveButtonClass="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md"
                     canvasClass="h-50 w-full"
                     withColorSelect={false}
@@ -597,12 +566,12 @@ export default function MusicianRegistration() {
                     {formData.isSubmitting ? (
                       <>
                         <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        <span>Registering...</span>
+                        <span>{t("musicianRegister.registering")}</span>
                       </>
                     ) : (
                       <>
                         <Music className="h-6 w-6" />
-                        <span>Complete Registration</span>
+                        <span>{t("musicianRegister.completeRegistration")}</span>
                         <ChevronRight className="h-5 w-5 opacity-70" />
                       </>
                     )}
